@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 struct MainWindow: View {
     @EnvironmentObject var appState: AppState
@@ -15,10 +16,11 @@ struct MainWindow: View {
         .background(
             WindowAccessor { window in
                 guard let window else { return }
-                if appState.mainWindow !== window {
-                    window.identifier = NSUserInterfaceItemIdentifier("MainWindow")
-                    appState.mainWindow = window
+                if let current = appState.mainWindow, current === window {
+                    return
                 }
+                window.identifier = NSUserInterfaceItemIdentifier("MainWindow")
+                appState.mainWindow = window
             }
         )
     }

@@ -172,6 +172,10 @@ class AppState: ObservableObject {
     }
 
     func startCapture(mode: CaptureMode) {
+        if !CGPreflightScreenCaptureAccess() {
+            requestScreenCaptureAccessIfNeeded()
+            return
+        }
         currentCaptureMode = mode
         isCapturing = true
         captureCountdown = 0
@@ -269,6 +273,14 @@ class AppState: ObservableObject {
         if showMainWindow, let window = mainWindow {
             window.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)
+        }
+    }
+
+    private func requestScreenCaptureAccessIfNeeded() {
+        let key = "didRequestScreenCaptureAccess"
+        if UserDefaults.standard.bool(forKey: key) == false {
+            UserDefaults.standard.set(true, forKey: key)
+            _ = CGRequestScreenCaptureAccess()
         }
     }
 

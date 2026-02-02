@@ -7,11 +7,13 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		0F1524768BF6CCC4E472C86F /* WindowAccessor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C7923366F43E2BA35337A6F /* WindowAccessor.swift */; };
 		1C32004A450CCE42DE5AD246 /* HotkeyManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = FDAD5CCBC715225FBC77C69F /* HotkeyManager.swift */; };
 		2720026A3EEA64C1DF36DB48 /* PinWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F493BBD51ECAD89390B1AA0 /* PinWindow.swift */; };
 		36B32C6FF1C2CF47D83D2C16 /* ScreenCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B1DC995657B34A68DF98B81 /* ScreenCapture.swift */; };
 		46D564ED22B47B6351F949B7 /* AnnotationCanvas.swift in Sources */ = {isa = PBXBuildFile; fileRef = C67C1A5D30C7CA6660767053 /* AnnotationCanvas.swift */; };
 		52CF38E7784287B81309AF27 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = CBA0741AA44B70A5CFCAF245 /* AppDelegate.swift */; };
+		68385B1F447DC6D404284CB9 /* CaptureOverlayWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B70572D94F5FA81C8B2B03F9 /* CaptureOverlayWindowController.swift */; };
 		8054B2249C94C40D6F848DFB /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 66D105A979FAE695B27471AF /* Assets.xcassets */; };
 		8C05D7EE210017399B877D69 /* SnapCleanApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 822CFEF9F44D7343D9CFBBEC /* SnapCleanApp.swift */; };
 		A2B23D89B1A3EF030C94DABF /* Screenshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65B71A1014464C8CD6A06516 /* Screenshot.swift */; };
@@ -31,10 +33,12 @@
 		65B71A1014464C8CD6A06516 /* Screenshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Screenshot.swift; sourceTree = "<group>"; };
 		66D105A979FAE695B27471AF /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		6B1DC995657B34A68DF98B81 /* ScreenCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenCapture.swift; sourceTree = "<group>"; };
+		6C7923366F43E2BA35337A6F /* WindowAccessor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowAccessor.swift; sourceTree = "<group>"; };
 		6E469E7A678F255514B17469 /* SnapClean.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = SnapClean.entitlements; sourceTree = "<group>"; };
 		6F493BBD51ECAD89390B1AA0 /* PinWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PinWindow.swift; sourceTree = "<group>"; };
 		7CFEA7CD06D3AF6420DB8016 /* PreferencesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferencesView.swift; sourceTree = "<group>"; };
 		822CFEF9F44D7343D9CFBBEC /* SnapCleanApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnapCleanApp.swift; sourceTree = "<group>"; };
+		B70572D94F5FA81C8B2B03F9 /* CaptureOverlayWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureOverlayWindowController.swift; sourceTree = "<group>"; };
 		C67C1A5D30C7CA6660767053 /* AnnotationCanvas.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnotationCanvas.swift; sourceTree = "<group>"; };
 		CBA0741AA44B70A5CFCAF245 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		DD8FF97CD0D5FBBD85368F93 /* CaptureOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureOverlay.swift; sourceTree = "<group>"; };
@@ -55,6 +59,7 @@
 				6F493BBD51ECAD89390B1AA0 /* PinWindow.swift */,
 				7CFEA7CD06D3AF6420DB8016 /* PreferencesView.swift */,
 				61361985584152143691777F /* ToolbarView.swift */,
+				6C7923366F43E2BA35337A6F /* WindowAccessor.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -70,6 +75,7 @@
 				AC289A5B8AAA9D4853B86EB1 /* Resources */,
 				2B467675DA2E9DD5063CB3D2 /* Services */,
 				06B35A0D95E5F59B6D1530AB /* Views */,
+				9732FF4B9B654C6FC7466DBC /* Windows */,
 			);
 			path = SnapClean;
 			sourceTree = "<group>";
@@ -97,6 +103,14 @@
 				65B71A1014464C8CD6A06516 /* Screenshot.swift */,
 			);
 			path = Models;
+			sourceTree = "<group>";
+		};
+		9732FF4B9B654C6FC7466DBC /* Windows */ = {
+			isa = PBXGroup;
+			children = (
+				B70572D94F5FA81C8B2B03F9 /* CaptureOverlayWindowController.swift */,
+			);
+			path = Windows;
 			sourceTree = "<group>";
 		};
 		AC289A5B8AAA9D4853B86EB1 /* Resources */ = {
@@ -189,6 +203,7 @@
 				46D564ED22B47B6351F949B7 /* AnnotationCanvas.swift in Sources */,
 				52CF38E7784287B81309AF27 /* AppDelegate.swift in Sources */,
 				E6E77254178CEB619957C998 /* CaptureOverlay.swift in Sources */,
+				68385B1F447DC6D404284CB9 /* CaptureOverlayWindowController.swift in Sources */,
 				F473CC85E14774300AD137B9 /* HistoryPanel.swift in Sources */,
 				1C32004A450CCE42DE5AD246 /* HotkeyManager.swift in Sources */,
 				BE2BE87B17318D648F30CA56 /* MainWindow.swift in Sources */,
@@ -199,6 +214,7 @@
 				A2B23D89B1A3EF030C94DABF /* Screenshot.swift in Sources */,
 				8C05D7EE210017399B877D69 /* SnapCleanApp.swift in Sources */,
 				C8B86253579D5B6D6603DC7F /* ToolbarView.swift in Sources */,
+				0F1524768BF6CCC4E472C86F /* WindowAccessor.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

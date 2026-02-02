@@ -52,9 +52,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func checkScreenRecordingPermission() {
-        if !CGPreflightScreenCaptureAccess() {
-            CGRequestScreenCaptureAccess()
-        }
+        _ = CGPreflightScreenCaptureAccess()
     }
 }
 
