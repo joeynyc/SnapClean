@@ -1,0 +1,2 @@
+# SnapClean
+SnapClean Screenshots
