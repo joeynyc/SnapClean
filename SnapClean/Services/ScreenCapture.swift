@@ -197,3 +197,29 @@ extension NSImage {
         return NSImage(cgImage: cgImage, size: self.size)
     }
 }
+import AVFoundation
+
+@available(macOS 14.0, *)
+private final class StreamSingleFrameGrabber: NSObject, SCStreamOutput {
+    private var firstSample: CMSampleBuffer?
+    private let semaphore = DispatchSemaphore(value: 0)
+
+    func stream(_ stream: SCStream, didOutputSampleBuffer sampleBuffer: CMSampleBuffer, of outputType: SCStreamOutputType) {
+        if firstSample == nil, CMSampleBufferIsValid(sampleBuffer) {
+            firstSample = sampleBuffer
+            semaphore.signal()
+        }
+    }
+
+    func waitForFirstFrame(timeout: TimeInterval) -> CMSampleBuffer? {
+        _ = semaphore.wait(timeout: .now() + timeout)
+        return firstSample
+    }
+}
+
+private extension NSScreen {
+    var displayID: CGDirectDisplayID? {
+        guard let screenNumber = deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber else { return nil }
+        return CGDirectDisplayID(screenNumber.uint32Value)
+    }
+}
