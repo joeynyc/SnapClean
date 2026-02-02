@@ -1,6 +1,5 @@
 import SwiftUI
 import Carbon
-import ApplicationServices
 
 class AppDelegate: NSObject, NSApplicationDelegate {
     private var aboutWindow: NSWindow?
@@ -53,18 +52,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func checkScreenRecordingPermission() {
-        let options: NSDictionary = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true]
-        let accessEnabled = AXIsProcessTrustedWithOptions(options)
-
-        if !accessEnabled {
-            let alert = NSAlert()
-            alert.messageText = "Screen Recording Permission Required"
-            alert.informativeText = "SnapClean needs screen recording permission to capture screenshots. Please enable it in System Settings > Privacy & Security > Screen Recording."
-            alert.addButton(withTitle: "Open System Settings")
-            alert.addButton(withTitle: "Later")
-            if alert.runModal() == .alertFirstButtonReturn {
-                NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.security.privacy_screenrecording")!)
-            }
+        if !CGPreflightScreenCaptureAccess() {
+            CGRequestScreenCaptureAccess()
         }
     }
 }
