@@ -1,0 +1,180 @@
+import SwiftUI
+
+struct HistoryPanel: View {
+    @EnvironmentObject var appState: AppState
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // Header
+            HStack {
+                Text("History")
+                    .font(.system(size: 18, weight: .bold, design: .rounded))
+
+                Spacer()
+
+                Text("\(appState.screenshotHistory.count) screenshots")
+                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                    .foregroundColor(.secondary)
+
+                Button {
+                    dismiss()
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 18))
+                        .foregroundColor(.secondary)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, 20)
+            .padding(.vertical, 16)
+            .background(Color(NSColor.controlBackgroundColor))
+
+            Divider()
+
+            // Content
+            if appState.screenshotHistory.isEmpty {
+                VStack(spacing: 16) {
+                    Image(systemName: "photo.on.rectangle")
+                        .font(.system(size: 48))
+                        .foregroundColor(.secondary)
+
+                    Text("No screenshots yet")
+                        .font(.system(size: 16, weight: .medium, design: .rounded))
+                        .foregroundColor(.secondary)
+
+                    Text("Capture your first screenshot to see it here")
+                        .font(.system(size: 13, weight: .regular, design: .rounded))
+                        .foregroundColor(.secondary.opacity(0.8))
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                ScrollView {
+                    LazyVGrid(columns: [
+                        GridItem(.flexible()),
+                        GridItem(.flexible()),
+                        GridItem(.flexible())
+                    ], spacing: 16) {
+                        ForEach(appState.screenshotHistory) { item in
+                            HistoryItemView(item: item)
+                        }
+                    }
+                    .padding(20)
+                }
+            }
+        }
+        .frame(width: 500, height: 500)
+    }
+}
+
+struct HistoryItemView: View {
+    let item: ScreenshotItem
+    @EnvironmentObject var appState: AppState
+
+    var body: some View {
+        VStack(spacing: 8) {
+            // Thumbnail
+            Button {
+                if let image = NSImage(contentsOfFile: item.filePath) {
+                    appState.pinnedImage = image
+                    appState.showPinWindow = true
+                }
+            } label: {
+                if let thumbnailData = item.thumbnail,
+                   let nsImage = NSImage(data: thumbnailData) {
+                    Image(nsImage: nsImage)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(height: 80)
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                } else {
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(Color.secondary.opacity(0.1))
+                        .frame(height: 80)
+                        .overlay(
+                            Image(systemName: "photo")
+                                .font(.system(size: 24))
+                                .foregroundColor(.secondary)
+                        )
+                }
+            }
+            .buttonStyle(.plain)
+
+            // Info
+            VStack(spacing: 2) {
+                Text(item.date, style: .date)
+                    .font(.system(size: 11, weight: .medium, design: .rounded))
+                    .foregroundColor(.primary)
+
+                Text(item.date, style: .time)
+                    .font(.system(size: 10, weight: .regular, design: .rounded))
+                    .foregroundColor(.secondary)
+            }
+
+            // Actions
+            HStack(spacing: 8) {
+                ActionIconButton(icon: "doc.on.doc", tooltip: "Copy") {
+                    if let image = NSImage(contentsOfFile: item.filePath) {
+                        appState.screenCapture.copyToClipboard(image)
+                    }
+                }
+
+                ActionIconButton(icon: "arrow.right.doc.on.clipboard", tooltip: "Copy Path") {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(item.filePath, forType: .string)
+                }
+
+                ActionIconButton(icon: "folder", tooltip: "Show in Finder") {
+                    appState.screenCapture.openInFinder(item.filePath)
+                }
+
+                ActionIconButton(icon: "trash", tooltip: "Delete") {
+                    appState.historyManager.deleteItem(item)
+                    appState.loadHistory()
+                }
+            }
+        }
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color(NSColor.controlBackgroundColor))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color.secondary.opacity(0.15), lineWidth: 1)
+        )
+    }
+}
+
+struct ActionIconButton: View {
+    let icon: String
+    let tooltip: String
+    let action: () -> Void
+
+    @State private var isHovered = false
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: icon)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundColor(isHovered ? .accentColor : .secondary)
+                .frame(width: 28, height: 28)
+                .background(
+                    Circle()
+                        .fill(isHovered ? Color.accentColor.opacity(0.1) : Color.clear)
+                )
+        }
+        .buttonStyle(.plain)
+        .help(tooltip)
+        .onHover { hovering in
+            withAnimation(.easeInOut(duration: 0.15)) {
+                isHovered = hovering
+            }
+        }
+    }
+}
+
+#Preview {
+    HistoryPanel()
+        .environmentObject(AppState())
+}
