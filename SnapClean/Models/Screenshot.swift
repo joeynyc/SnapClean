@@ -1,5 +1,6 @@
 import SwiftUI
 import Combine
+import AppKit
 
 enum CaptureMode {
     case region
@@ -106,9 +107,14 @@ class AppState: ObservableObject {
     @Published var redoStack: [[AnnotationElement]] = []
 
     @Published var isTransparentBackground = false
+    @Published var captureCountdown: Int = 0
 
     let screenCapture = ScreenCaptureService()
     let historyManager = ScreenshotHistoryManager()
+    private let captureOverlayController = CaptureOverlayWindowController()
+    private var captureTimer: Timer?
+    private var wasMainWindowVisibleBeforeCapture = false
+    weak var mainWindow: NSWindow?
 
     var copyAfterCapture: Bool {
         get { UserDefaults.standard.bool(forKey: "copyAfterCapture") }
@@ -168,11 +174,20 @@ class AppState: ObservableObject {
     func startCapture(mode: CaptureMode) {
         currentCaptureMode = mode
         isCapturing = true
+        captureCountdown = 0
+        wasMainWindowVisibleBeforeCapture = mainWindow?.isVisible ?? false
+        mainWindow?.orderOut(nil)
+        captureOverlayController.show(mode: mode, appState: self)
+
+        if mode == .screen {
+            startScreenCountdown()
+        }
     }
 
     func handleCapturedImage(_ image: NSImage) {
         capturedImage = image
-        isCapturing = false
+        let shouldShowMainWindow = showPreviewAfterCapture || wasMainWindowVisibleBeforeCapture
+        endCapture(showMainWindow: shouldShowMainWindow)
 
         if copyAfterCapture {
             screenCapture.copyToClipboard(image)
@@ -185,6 +200,16 @@ class AppState: ObservableObject {
                 addToHistory(path: path, image: image)
             }
         }
+    }
+
+    func cancelCapture() {
+        captureTimer?.invalidate()
+        captureCountdown = 0
+        endCapture(showMainWindow: wasMainWindowVisibleBeforeCapture)
+    }
+
+    func endCaptureRestoringWindow() {
+        endCapture(showMainWindow: wasMainWindowVisibleBeforeCapture)
     }
 
     func saveAnnotation() {
@@ -210,6 +235,41 @@ class AppState: ObservableObject {
 
     func loadHistory() {
         screenshotHistory = historyManager.loadHistory()
+    }
+
+    private func startScreenCountdown() {
+        captureTimer?.invalidate()
+        captureCountdown = timerDuration
+        captureTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+            guard let self else { return }
+            if self.captureCountdown > 1 {
+                self.captureCountdown -= 1
+                return
+            }
+
+            self.captureCountdown = 0
+            self.captureTimer?.invalidate()
+            self.captureTimer = nil
+
+            if let image = self.screenCapture.captureFullScreen() {
+                self.handleCapturedImage(image)
+            } else {
+                self.endCapture(showMainWindow: self.wasMainWindowVisibleBeforeCapture)
+            }
+        }
+    }
+
+    private func endCapture(showMainWindow: Bool) {
+        isCapturing = false
+        captureTimer?.invalidate()
+        captureTimer = nil
+        captureCountdown = 0
+        captureOverlayController.hide()
+
+        if showMainWindow, let window = mainWindow {
+            window.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+        }
     }
 
     func addAnnotation(_ element: AnnotationElement) {

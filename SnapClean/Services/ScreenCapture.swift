@@ -10,17 +10,29 @@ class ScreenCaptureService {
     }()
 
     func captureRegion(rect: CGRect) -> NSImage? {
-        let displayID = CGDirectDisplayID(CGMainDisplayID())
-        guard let cgImage = CGDisplayCreateImage(displayID, rect: rect) else { return nil }
-        return NSImage(cgImage: cgImage, size: rect.size)
+        let captureRect = rect.integral
+        guard let cgImage = CGWindowListCreateImage(
+            captureRect,
+            .optionOnScreenOnly,
+            kCGNullWindowID,
+            [.bestResolution]
+        ) else { return nil }
+        return NSImage(cgImage: cgImage, size: captureRect.size)
     }
 
     func captureFullScreen() -> NSImage? {
-        let screen = NSScreen.main
-        guard let screenRect = screen?.frame else { return nil }
-        let displayID = CGDirectDisplayID(CGMainDisplayID())
-        guard let cgImage = CGDisplayCreateImage(displayID) else { return nil }
-        return NSImage(cgImage: cgImage, size: screenRect.size)
+        guard let first = NSScreen.screens.first else { return nil }
+        var unionRect = first.frame
+        for screen in NSScreen.screens.dropFirst() {
+            unionRect = unionRect.union(screen.frame)
+        }
+        guard let cgImage = CGWindowListCreateImage(
+            unionRect,
+            .optionOnScreenOnly,
+            kCGNullWindowID,
+            [.bestResolution]
+        ) else { return nil }
+        return NSImage(cgImage: cgImage, size: unionRect.size)
     }
 
     func captureWindow(at point: CGPoint) -> NSImage? {

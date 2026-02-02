@@ -5,15 +5,22 @@ struct MainWindow: View {
 
     var body: some View {
         ZStack {
-            if appState.isCapturing {
-                CaptureOverlay(mode: appState.currentCaptureMode)
-            } else if appState.showAnnotationCanvas, let image = appState.capturedImage {
+            if appState.showAnnotationCanvas, let image = appState.capturedImage {
                 AnnotationCanvasView(image: image)
             } else {
                 WelcomeView()
             }
         }
         .frame(minWidth: 800, minHeight: 600)
+        .background(
+            WindowAccessor { window in
+                guard let window else { return }
+                if appState.mainWindow !== window {
+                    window.identifier = NSUserInterfaceItemIdentifier("MainWindow")
+                    appState.mainWindow = window
+                }
+            }
+        )
     }
 }
 
