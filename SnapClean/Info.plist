@@ -38,8 +38,6 @@
 	<string>NSApplication</string>
 	<key>NSScreenCaptureDescription</key>
 	<string>SnapClean needs screen recording access to capture screenshots of your screen.</string>
-	<key>NSSystemExtensionUsageDescription</key>
-	<string>SnapClean needs screen recording access to capture screenshots.</string>
 	<key>NSUserNotificationUsageDescription</key>
 	<string>SnapClean uses notifications to inform you about screenshot status.</string>
 </dict>
