@@ -1,72 +1,18 @@
 # SnapClean
 
-A beautiful, native macOS screenshot app built with SwiftUI to compete with CleanShot X.
+A fast, native macOS screenshot tool with annotation, history, and pin-to-screen — built entirely with SwiftUI and Apple frameworks. No dependencies.
 
 ## Features
 
-### Screenshot Capture
-- **Region selection** - Drag to capture a custom area
-- **Window selection** - Click to capture any window
-- **Full screen capture** - Capture the entire screen
-- **Timed capture** - 3, 5, or 10 second countdown
-- **Clipboard integration** - Copy instantly to clipboard
-- **Auto-save** - Saves to Downloads folder
+**Capture** — Region select, window pick, or full screen. Timed capture with 3/5/10s countdown. Auto-saves to Downloads and copies to clipboard.
 
-### Annotation Tools
-- Arrow tool with customizable direction
-- Text tool with font picker
-- Rectangle and Oval shapes
-- Line and Pencil drawing
-- Blur/Pixelate for sensitive info
-- Color picker with custom colors
-- Undo/Redo support
+**Annotate** — Arrows, text, shapes, lines, freehand drawing, blur, and pixelate. Full color picker, undo/redo, and live preview before saving.
 
-### UI/UX
-- Beautiful floating toolbar with glass effect (macOS 26+)
-- Keyboard shortcuts (F1, F2, F3, ⌘Z, ⌘S, ⌘C)
-- Preview before saving
-- History strip of recent screenshots
+**Pin to Screen** — Float any screenshot as an always-on-top overlay with optional transparency.
 
-### Pin to Screen
-- Pin screenshots as desktop overlays
-- Always on top functionality
-- Transparent background option
+**History** — Browse and manage your last 50 screenshots. Open in Finder, copy, or delete.
 
-### Quick Actions
-- Copy to clipboard
-- Save to disk
-- Open in Finder
-- Delete
-
-## Requirements
-
-- macOS 14.0 (Sonoma) or later
-- macOS 26.0+ for Liquid Glass effects
-
-## Building
-
-### Prerequisites
-- Xcode 15.0 or later
-- XcodeGen (install via Homebrew: `brew install xcodegen`)
-
-### Setup
-```bash
-# Generate the Xcode project
-xcodegen generate
-
-# Build the project
-./build.sh build
-
-# Build and run
-./build.sh run
-```
-
-### Manual Build
-```bash
-cd /Users/joeyrodriguez/clawd/SnapClean
-xcodegen generate
-xcodebuild -project SnapClean.xcodeproj -scheme SnapClean -configuration Debug build
-```
+**Menu Bar** — Quick access from the menu bar without opening the main window.
 
 ## Keyboard Shortcuts
 
@@ -75,56 +21,25 @@ xcodebuild -project SnapClean.xcodeproj -scheme SnapClean -configuration Debug b
 | F1 | Capture Region |
 | F2 | Capture Window |
 | F3 | Capture Screen |
-| ⌘Z | Undo |
-| ⌘⇧Z | Redo |
-| ⌘S | Save |
-| ⌘C | Copy |
+| Cmd+Z | Undo |
+| Cmd+Shift+Z | Redo |
+| Cmd+S | Save |
+| Cmd+C | Copy |
 
-## Project Structure
+## Requirements
 
+- macOS 14.0 (Sonoma) or later
+- Screen Recording and Accessibility permissions
+
+## Build
+
+```bash
+brew install xcodegen    # one-time setup
+xcodegen generate        # generate Xcode project
+./build.sh run           # build and launch
 ```
-SnapClean/
-├── SnapClean.xcodeproj/
-├── SnapClean/
-│   ├── SnapCleanApp.swift
-│   ├── AppDelegate.swift
-│   ├── Views/
-│   │   ├── MainWindow.swift
-│   │   ├── CaptureOverlay.swift
-│   │   ├── AnnotationCanvas.swift
-│   │   ├── ToolbarView.swift
-│   │   ├── HistoryPanel.swift
-│   │   ├── PinWindow.swift
-│   │   ├── PreferencesView.swift
-│   │   ├── MenuBarView.swift
-│   │   └── Components/
-│   │       └── Styles.swift
-│   ├── Models/
-│   │   └── Screenshot.swift
-│   ├── Services/
-│   │   ├── ScreenCapture.swift
-│   │   └── HotkeyManager.swift
-│   ├── Resources/
-│   │   └── Assets.xcassets
-│   ├── Info.plist
-│   └── SnapClean.entitlements
-├── project.yml
-└── build.sh
-```
-
-## Permissions
-
-SnapClean requires the following permissions:
-- **Screen Recording** - To capture screenshots
-- **Accessibility** - For keyboard shortcuts
-- **Clipboard** - For copy/paste functionality
 
 ## License
 
-MIT License - Feel free to contribute!
+MIT
 
-## Acknowledgments
-
-- Built with SwiftUI and AppKit
-- Uses CoreGraphics for screen capture
-- Inspired by CleanShot X
