@@ -6,13 +6,14 @@ class HotkeyManager {
     static let shared = HotkeyManager()
 
     private var hotkeys: [UInt16: (NSEvent.ModifierFlags, () -> Void)] = [:]
-    private var eventMonitor: Any?
+    private var globalMonitor: Any?
+    private var localMonitor: Any?
 
     private init() {}
 
     func register(keyCode: UInt16, modifiers: NSEvent.ModifierFlags, action: @escaping () -> Void) {
         hotkeys[keyCode] = (modifiers, action)
-        setupEventMonitor()
+        setupEventMonitors()
     }
 
     func unregister(keyCode: UInt16) {
@@ -21,28 +22,50 @@ class HotkeyManager {
 
     func unregisterAll() {
         hotkeys.removeAll()
-        if let monitor = eventMonitor {
+        if let monitor = globalMonitor {
             NSEvent.removeMonitor(monitor)
-            eventMonitor = nil
+            globalMonitor = nil
+        }
+        if let monitor = localMonitor {
+            NSEvent.removeMonitor(monitor)
+            localMonitor = nil
         }
     }
 
-    private func setupEventMonitor() {
+    private func handleKeyEvent(_ event: NSEvent) {
+        // Strip .function from flags — macOS always sets it for function keys,
+        // so without this, comparing against empty modifiers [] always fails.
+        let maskedFlags = event.modifierFlags
+            .intersection(.deviceIndependentFlagsMask)
+            .subtracting(.function)
+
+        if let (modifiers, action) = hotkeys[event.keyCode],
+           maskedFlags == modifiers {
+            action()
+        }
+    }
+
+    private func setupEventMonitors() {
         guard !hotkeys.isEmpty else { return }
 
-        if let monitor = eventMonitor {
+        if let monitor = globalMonitor {
             NSEvent.removeMonitor(monitor)
-            eventMonitor = nil
+            globalMonitor = nil
+        }
+        if let monitor = localMonitor {
+            NSEvent.removeMonitor(monitor)
+            localMonitor = nil
         }
 
-        eventMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            guard let self = self else { return }
+        // Global monitor: fires when other apps are focused
+        globalMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            self?.handleKeyEvent(event)
+        }
 
-            let maskedFlags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
-            if let action = self.hotkeys[event.keyCode],
-               maskedFlags == action.0 {
-                action.1()
-            }
+        // Local monitor: fires when this app is focused
+        localMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            self?.handleKeyEvent(event)
+            return event
         }
     }
 }

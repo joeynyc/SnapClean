@@ -2,7 +2,6 @@ import SwiftUI
 
 struct MenuBarView: View {
     @EnvironmentObject var appState: AppState
-    @State private var showPreferences = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -87,9 +86,7 @@ struct MenuBarView: View {
             Divider()
 
             // Settings
-            Button {
-                showPreferences = true
-            } label: {
+            SettingsLink {
                 HStack {
                     Image(systemName: "gearshape")
                         .font(.system(size: 14))
@@ -128,10 +125,6 @@ struct MenuBarView: View {
         .frame(width: 250)
         .onAppear {
             appState.loadHistory()
-        }
-        .sheet(isPresented: $showPreferences) {
-            PreferencesView()
-                .environmentObject(appState)
         }
         .sheet(isPresented: $appState.showHistory) {
             HistoryPanel()

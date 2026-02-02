@@ -18,9 +18,9 @@ struct SnapCleanApp: App {
                     appState.showAboutWindow = true
                 }
             }
-            CommandGroup(after: .appSettings) {
-                Button("Preferences...") {
-                    appState.showPreferences = true
+            CommandGroup(replacing: .appSettings) {
+                SettingsLink {
+                    Text("Preferences...")
                 }
                 .keyboardShortcut(",", modifiers: [.command])
             }
@@ -31,5 +31,11 @@ struct SnapCleanApp: App {
                 .environmentObject(appState)
         }
         .menuBarExtraStyle(.window)
+
+        Settings {
+            PreferencesView()
+                .environmentObject(appState)
+                .frame(width: 600, height: 400)
+        }
     }
 }
