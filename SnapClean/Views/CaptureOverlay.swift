@@ -11,6 +11,7 @@ struct CaptureOverlay: View {
     @State private var selectedWindow: (id: CGWindowID, name: String, bounds: CGRect)?
     @State private var timer: Timer?
     @State private var countdown: Int = 0
+    @State private var keyMonitor: Any?
 
     var body: some View {
         ZStack {
@@ -42,12 +43,22 @@ struct CaptureOverlay: View {
             }
         }
         .onAppear {
+            keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+                if event.keyCode == 53 { // ESC
+                    cancelCapture()
+                    return nil
+                }
+                return event
+            }
             if mode == .screen {
                 startTimerCapture()
             }
         }
-        .onKeyCode(53, modifiers: []) { // ESC key code
-            cancelCapture()
+        .onDisappear {
+            if let monitor = keyMonitor {
+                NSEvent.removeMonitor(monitor)
+                keyMonitor = nil
+            }
         }
     }
 
@@ -160,7 +171,7 @@ struct CaptureOverlay: View {
     }
 
     private func startTimerCapture() {
-        countdown = 3
+        countdown = appState.timerDuration
         timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
             if countdown > 0 {
                 countdown -= 1
@@ -190,7 +201,7 @@ struct CaptureOverlay: View {
     }
 
     private func performWindowCapture(window: (id: CGWindowID, name: String, bounds: CGRect)) {
-        if let image = appState.screenCapture.captureRegion(rect: window.bounds) {
+        if let image = appState.screenCapture.captureWindowByID(window.id, bounds: window.bounds) {
             appState.handleCapturedImage(image)
         }
     }
@@ -222,19 +233,4 @@ struct WindowHighlightView: View {
             )
             .animation(.easeInOut(duration: 0.15), value: isSelected)
     }
-}
-
-extension View {
-    func onKeyCode(_ keyCode: UInt16, modifiers: NSEvent.ModifierFlags = [], action: @escaping () -> Void) -> some View {
-        self.onReceive(NotificationCenter.default.publisher(for: .keyDown)) { event in
-            guard let keyEvent = event as? NSEvent,
-                  keyEvent.keyCode == keyCode,
-                  keyEvent.modifierFlags.contains(modifiers) else { return }
-            action()
-        }
-    }
-}
-
-extension Notification.Name {
-    static let keyDown = Notification.Name("NSEventTypeKeyDown")
 }

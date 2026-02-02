@@ -7,7 +7,6 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		00B0FF5A0ED3D6AED2C2680F /* Styles.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C253663197737B74D692E59 /* Styles.swift */; };
 		1C32004A450CCE42DE5AD246 /* HotkeyManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = FDAD5CCBC715225FBC77C69F /* HotkeyManager.swift */; };
 		2720026A3EEA64C1DF36DB48 /* PinWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F493BBD51ECAD89390B1AA0 /* PinWindow.swift */; };
 		36B32C6FF1C2CF47D83D2C16 /* ScreenCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B1DC995657B34A68DF98B81 /* ScreenCapture.swift */; };
@@ -28,7 +27,6 @@
 		11CEC64E05A9A064B0B9483D /* SnapClean.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SnapClean.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		1C674872497C779C2068C35C /* HistoryPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryPanel.swift; sourceTree = "<group>"; };
 		3406F360816D0C5D731D47B2 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
-		5C253663197737B74D692E59 /* Styles.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Styles.swift; sourceTree = "<group>"; };
 		61361985584152143691777F /* ToolbarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolbarView.swift; sourceTree = "<group>"; };
 		65B71A1014464C8CD6A06516 /* Screenshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Screenshot.swift; sourceTree = "<group>"; };
 		66D105A979FAE695B27471AF /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -57,7 +55,6 @@
 				6F493BBD51ECAD89390B1AA0 /* PinWindow.swift */,
 				7CFEA7CD06D3AF6420DB8016 /* PreferencesView.swift */,
 				61361985584152143691777F /* ToolbarView.swift */,
-				C9411C2714624490C654B745 /* Components */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -108,14 +105,6 @@
 				66D105A979FAE695B27471AF /* Assets.xcassets */,
 			);
 			path = Resources;
-			sourceTree = "<group>";
-		};
-		C9411C2714624490C654B745 /* Components */ = {
-			isa = PBXGroup;
-			children = (
-				5C253663197737B74D692E59 /* Styles.swift */,
-			);
-			path = Components;
 			sourceTree = "<group>";
 		};
 		E348B3FA11CBE09FDB0DB483 /* Products */ = {
@@ -209,7 +198,6 @@
 				36B32C6FF1C2CF47D83D2C16 /* ScreenCapture.swift in Sources */,
 				A2B23D89B1A3EF030C94DABF /* Screenshot.swift in Sources */,
 				8C05D7EE210017399B877D69 /* SnapCleanApp.swift in Sources */,
-				00B0FF5A0ED3D6AED2C2680F /* Styles.swift in Sources */,
 				C8B86253579D5B6D6603DC7F /* ToolbarView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

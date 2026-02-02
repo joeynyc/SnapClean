@@ -131,6 +131,7 @@ struct MenuBarView: View {
         }
         .sheet(isPresented: $showPreferences) {
             PreferencesView()
+                .environmentObject(appState)
         }
         .sheet(isPresented: $appState.showHistory) {
             HistoryPanel()

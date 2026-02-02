@@ -47,6 +47,16 @@ class ScreenCaptureService {
         return nil
     }
 
+    func captureWindowByID(_ windowID: CGWindowID, bounds: CGRect) -> NSImage? {
+        guard let cgImage = CGWindowListCreateImage(
+            bounds,
+            .optionIncludingWindow,
+            windowID,
+            [.boundsIgnoreFraming]
+        ) else { return nil }
+        return NSImage(cgImage: cgImage, size: bounds.size)
+    }
+
     func getWindowList() -> [(id: CGWindowID, name: String, bounds: CGRect)] {
         let windowList = CGWindowListCopyWindowInfo(.optionOnScreenOnly, CGWindowID(0))
         guard let windowList = windowList else { return [] }
@@ -72,7 +82,7 @@ class ScreenCaptureService {
         return result
     }
 
-    func saveImage(_ image: NSImage, to folder: URL? = nil) -> String {
+    func saveImage(_ image: NSImage, to folder: URL? = nil) -> String? {
         let saveFolder = folder ?? FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask)[0]
         let fileName = "SnapClean_\(dateFormatter.string(from: Date())).png"
         let fileURL = saveFolder.appendingPathComponent(fileName)
@@ -80,11 +90,16 @@ class ScreenCaptureService {
         guard let tiffData = image.tiffRepresentation,
               let bitmapImage = NSBitmapImageRep(data: tiffData),
               let pngData = bitmapImage.representation(using: .png, properties: [:]) else {
-            return ""
+            return nil
         }
 
-        try? pngData.write(to: fileURL)
-        return fileURL.path
+        do {
+            try pngData.write(to: fileURL)
+            return fileURL.path
+        } catch {
+            NSLog("SnapClean: Failed to save image: \(error.localizedDescription)")
+            return nil
+        }
     }
 
     func copyToClipboard(_ image: NSImage) {
@@ -96,36 +111,6 @@ class ScreenCaptureService {
     func openInFinder(_ path: String) {
         NSWorkspace.shared.selectFile(path, inFileViewerRootedAtPath: "")
     }
-
-    func getImageSize(_ image: NSImage) -> NSSize {
-        return image.size
-    }
-
-    func getPixelData(_ image: NSImage) -> [UInt8]? {
-        guard let tiffData = image.tiffRepresentation,
-              let bitmapImage = NSBitmapImageRep(data: tiffData) else {
-            return nil
-        }
-
-        let pixelsWide = bitmapImage.pixelsWide
-        let pixelsHigh = bitmapImage.pixelsHigh
-        var rawData = [UInt8](repeating: 0, count: pixelsWide * pixelsHigh * 4)
-
-        let context = CGContext(
-            data: &rawData,
-            width: pixelsWide,
-            height: pixelsHigh,
-            bitsPerComponent: 8,
-            bytesPerRow: 4 * pixelsWide,
-            space: CGColorSpaceCreateDeviceRGB(),
-            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
-        )
-
-        guard let cgImage = bitmapImage.cgImage else { return nil }
-        context?.draw(cgImage, in: CGRect(x: 0, y: 0, width: pixelsWide, height: pixelsHigh))
-
-        return rawData
-    }
 }
 
 extension NSImage {
@@ -133,62 +118,70 @@ extension NSImage {
         let newImage = NSImage(size: newSize)
         newImage.lockFocus()
         NSColor.clear.set()
-        newImage.draw(at: .zero, from: NSRect(origin: .zero, size: newSize), operation: .copy, fraction: 1.0)
         draw(in: NSRect(origin: .zero, size: newSize), from: NSRect(origin: .zero, size: size), operation: .copy, fraction: 1.0)
         newImage.unlockFocus()
         return newImage
     }
 
     func pixelate(amount: CGFloat, rect: CGRect) -> NSImage? {
-        guard let ciImage = CIImage(data: self.tiffRepresentation ?? Data()),
+        guard let tiffData = self.tiffRepresentation,
+              let ciImage = CIImage(data: tiffData),
               let filter = CIFilter(name: "CIPixellate") else {
             return nil
         }
 
-        let scaleX = ciImage.extent.width / rect.width
-        let scaleY = ciImage.extent.height / rect.height
+        let scaleX = ciImage.extent.width / self.size.width
+        let scaleY = ciImage.extent.height / self.size.height
+
+        let ciRect = CGRect(
+            x: rect.origin.x * scaleX,
+            y: (self.size.height - rect.origin.y - rect.height) * scaleY,
+            width: rect.width * scaleX,
+            height: rect.height * scaleY
+        )
 
         filter.setValue(ciImage, forKey: kCIInputImageKey)
         filter.setValue(amount * max(scaleX, scaleY), forKey: kCIInputScaleKey)
 
-        guard let outputCIImage = filter.outputImage,
-              let cgImage = CIContext(options: nil).createCGImage(outputCIImage, from: ciImage.extent) else {
-            return nil
-        }
+        guard let outputCIImage = filter.outputImage else { return nil }
 
-        let result = NSImage(cgImage: cgImage, size: self.size)
+        let croppedOutput = outputCIImage.cropped(to: ciRect)
+        let composited = croppedOutput.composited(over: ciImage)
 
-        let finalImage = NSImage(size: self.size)
-        finalImage.lockFocus()
-        self.draw(at: .zero, from: NSRect(origin: .zero, size: self.size), operation: .copy, fraction: 1.0)
-        result.draw(at: rect.origin, from: rect, operation: .destinationIn, fraction: 1.0)
-        finalImage.unlockFocus()
+        let context = CIContext(options: nil)
+        guard let cgImage = context.createCGImage(composited, from: ciImage.extent) else { return nil }
 
-        return finalImage
+        return NSImage(cgImage: cgImage, size: self.size)
     }
 
     func blur(amount: CGFloat, rect: CGRect) -> NSImage? {
-        guard let ciImage = CIImage(data: self.tiffRepresentation ?? Data()),
+        guard let tiffData = self.tiffRepresentation,
+              let ciImage = CIImage(data: tiffData),
               let filter = CIFilter(name: "CIGaussianBlur") else {
             return nil
         }
 
+        let scaleX = ciImage.extent.width / self.size.width
+        let scaleY = ciImage.extent.height / self.size.height
+
+        let ciRect = CGRect(
+            x: rect.origin.x * scaleX,
+            y: (self.size.height - rect.origin.y - rect.height) * scaleY,
+            width: rect.width * scaleX,
+            height: rect.height * scaleY
+        )
+
         filter.setValue(ciImage, forKey: kCIInputImageKey)
         filter.setValue(amount, forKey: kCIInputRadiusKey)
 
-        guard let outputCIImage = filter.outputImage,
-              let cgImage = CIContext(options: nil).createCGImage(outputCIImage, from: ciImage.extent) else {
-            return nil
-        }
+        guard let outputCIImage = filter.outputImage else { return nil }
 
-        let result = NSImage(cgImage: cgImage, size: self.size)
+        let croppedOutput = outputCIImage.cropped(to: ciRect)
+        let composited = croppedOutput.composited(over: ciImage)
 
-        let finalImage = NSImage(size: self.size)
-        finalImage.lockFocus()
-        self.draw(at: .zero, from: NSRect(origin: .zero, size: self.size), operation: .copy, fraction: 1.0)
-        result.draw(at: rect.origin, from: rect, operation: .destinationIn, fraction: 1.0)
-        finalImage.unlockFocus()
+        let context = CIContext(options: nil)
+        guard let cgImage = context.createCGImage(composited, from: ciImage.extent) else { return nil }
 
-        return finalImage
+        return NSImage(cgImage: cgImage, size: self.size)
     }
 }

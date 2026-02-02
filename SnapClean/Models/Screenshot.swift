@@ -110,6 +110,37 @@ class AppState: ObservableObject {
     let screenCapture = ScreenCaptureService()
     let historyManager = ScreenshotHistoryManager()
 
+    var copyAfterCapture: Bool {
+        get { UserDefaults.standard.bool(forKey: "copyAfterCapture") }
+        set { UserDefaults.standard.set(newValue, forKey: "copyAfterCapture") }
+    }
+
+    var showPreviewAfterCapture: Bool {
+        get {
+            if UserDefaults.standard.object(forKey: "showPreviewAfterCapture") == nil {
+                return true
+            }
+            return UserDefaults.standard.bool(forKey: "showPreviewAfterCapture")
+        }
+        set { UserDefaults.standard.set(newValue, forKey: "showPreviewAfterCapture") }
+    }
+
+    var timerDuration: Int {
+        get {
+            let val = UserDefaults.standard.integer(forKey: "timerDuration")
+            return val > 0 ? val : 3
+        }
+        set { UserDefaults.standard.set(newValue, forKey: "timerDuration") }
+    }
+
+    var historyLimit: Int {
+        get {
+            let val = UserDefaults.standard.integer(forKey: "historyLimit")
+            return val > 0 ? val : 50
+        }
+        set { UserDefaults.standard.set(newValue, forKey: "historyLimit") }
+    }
+
     init() {
         loadHistory()
         setupNotifications()
@@ -142,12 +173,26 @@ class AppState: ObservableObject {
     func handleCapturedImage(_ image: NSImage) {
         capturedImage = image
         isCapturing = false
-        showAnnotationCanvas = true
+
+        if copyAfterCapture {
+            screenCapture.copyToClipboard(image)
+        }
+
+        if showPreviewAfterCapture {
+            showAnnotationCanvas = true
+        } else {
+            if let path = screenCapture.saveImage(image) {
+                addToHistory(path: path, image: image)
+            }
+        }
     }
 
     func saveAnnotation() {
         guard let image = capturedImage else { return }
-        let savedPath = screenCapture.saveImage(image)
+        guard let savedPath = screenCapture.saveImage(image) else {
+            NSLog("SnapClean: Failed to save annotation")
+            return
+        }
         addToHistory(path: savedPath, image: image)
         resetAnnotationState()
         showAnnotationCanvas = false
@@ -157,7 +202,7 @@ class AppState: ObservableObject {
         let thumbnail = image.resize(to: NSSize(width: 150, height: 100))?.tiffRepresentation
         let item = ScreenshotItem(date: Date(), filePath: path, thumbnail: thumbnail)
         screenshotHistory.insert(item, at: 0)
-        if screenshotHistory.count > 50 {
+        if screenshotHistory.count > historyLimit {
             screenshotHistory.removeLast()
         }
         historyManager.saveHistory(screenshotHistory)
@@ -205,7 +250,7 @@ class AppState: ObservableObject {
 
 class ScreenshotHistoryManager {
     private let historyKey = "screenshotHistory"
-    private let saveDirectory: URL
+    let saveDirectory: URL
 
     init() {
         let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]

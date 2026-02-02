@@ -45,10 +45,18 @@ struct PinWindow: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(appState.isTransparentBackground ? Color.clear : Color(NSColor.windowBackgroundColor))
             .ignoresSafeArea()
-            .onDrag {
-                offset = CGSize(width: offset.width + 20, height: offset.height + 20)
-                return NSItemProvider()
-            }
+            .gesture(
+                DragGesture()
+                    .onChanged { value in
+                        offset = CGSize(
+                            width: lastOffset.width + value.translation.width,
+                            height: lastOffset.height + value.translation.height
+                        )
+                    }
+                    .onEnded { _ in
+                        lastOffset = offset
+                    }
+            )
             .toolbar {
                 ToolbarItemGroup(placement: .automatic) {
                     EmptyView()
@@ -103,8 +111,9 @@ struct PinToolbarView: View {
             // Save
             Button {
                 if let image = appState.pinnedImage {
-                    let path = appState.screenCapture.saveImage(image)
-                    appState.addToHistory(path: path, image: image)
+                    if let path = appState.screenCapture.saveImage(image) {
+                        appState.addToHistory(path: path, image: image)
+                    }
                 }
             } label: {
                 Image(systemName: "square.and.arrow.down")
@@ -122,8 +131,9 @@ struct PinToolbarView: View {
             // Open in Finder
             Button {
                 if let image = appState.pinnedImage {
-                    let path = appState.screenCapture.saveImage(image)
-                    appState.screenCapture.openInFinder(path)
+                    if let path = appState.screenCapture.saveImage(image) {
+                        appState.screenCapture.openInFinder(path)
+                    }
                 }
             } label: {
                 Image(systemName: "folder")

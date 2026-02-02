@@ -2,7 +2,6 @@ import SwiftUI
 
 struct MainWindow: View {
     @EnvironmentObject var appState: AppState
-    @State private var isFullScreen = false
 
     var body: some View {
         ZStack {
@@ -15,12 +14,6 @@ struct MainWindow: View {
             }
         }
         .frame(minWidth: 800, minHeight: 600)
-        .onReceive(NotificationCenter.default.publisher(for: .captureComplete)) { notification in
-            if let imageData = notification.object as? Data,
-               let nsImage = NSImage(data: imageData) {
-                appState.handleCapturedImage(nsImage)
-            }
-        }
     }
 }
 

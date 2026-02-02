@@ -2,8 +2,6 @@ import SwiftUI
 
 struct ToolbarView: View {
     @EnvironmentObject var appState: AppState
-    @State private var showColorPicker = false
-    @State private var showLineWidthPicker = false
 
     var body: some View {
         HStack(spacing: 8) {
@@ -84,7 +82,6 @@ struct ToolPicker: View {
 
 struct ColorPickerButton: View {
     @Binding var color: Color
-    @State private var isExpanded = false
 
     var body: some View {
         Menu {
@@ -119,7 +116,6 @@ struct ColorPickerButton: View {
 
 struct LineWidthPicker: View {
     @Binding var width: CGFloat
-    @State private var showSlider = false
 
     var body: some View {
         Menu {

@@ -8,10 +8,9 @@ struct AnnotationCanvasView: View {
     @State private var currentPath: [CGPoint] = []
     @State private var currentStartPoint: CGPoint = .zero
     @State private var currentEndPoint: CGPoint = .zero
-    @State private var showFontPicker = false
-    @State private var showExportOptions = false
     @State private var textInput = ""
     @State private var isEnteringText = false
+    @State private var keyMonitor: Any?
 
     var body: some View {
         GeometryReader { geometry in
@@ -177,18 +176,36 @@ struct AnnotationCanvasView: View {
                     currentPath = []
                 }
         )
-        .keyboardShortcut("z", modifiers: .command)
-        .keyboardShortcut("z", modifiers: [.command, .shift])
-        .keyboardShortcut("s", modifiers: .command)
-        .keyboardShortcut("c", modifiers: .command)
-    }
-
-    private func saveImage() {
-        appState.saveAnnotation()
-    }
-
-    private func copyToClipboard() {
-        appState.screenCapture.copyToClipboard(image)
+        .onAppear {
+            keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [self] event in
+                let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+                if flags == .command && event.charactersIgnoringModifiers == "z" {
+                    appState.undo()
+                    return nil
+                }
+                if flags == [.command, .shift] && event.charactersIgnoringModifiers == "z" {
+                    appState.redo()
+                    return nil
+                }
+                if flags == .command && event.charactersIgnoringModifiers == "s" {
+                    appState.saveAnnotation()
+                    return nil
+                }
+                if flags == .command && event.charactersIgnoringModifiers == "c" {
+                    if let img = appState.capturedImage {
+                        appState.screenCapture.copyToClipboard(img)
+                    }
+                    return nil
+                }
+                return event
+            }
+        }
+        .onDisappear {
+            if let monitor = keyMonitor {
+                NSEvent.removeMonitor(monitor)
+                keyMonitor = nil
+            }
+        }
     }
 }
 
@@ -277,13 +294,13 @@ struct AnnotationRenderer: View {
 
                 case .text:
                     if let text = el.text, let point = el.points.first {
-                        let font = NSFont.systemFont(ofSize: el.fontSize ?? el.lineWidth * 8)
-                        let attributes: [NSAttributedString.Key: Any] = [
-                            .font: font,
-                            .foregroundColor: color
-                        ]
-                        let attributedString = NSAttributedString(string: text, attributes: attributes)
-                        attributedString.draw(at: CGPoint(x: point.x, y: point.y - (el.fontSize ?? el.lineWidth * 8)))
+                        let fontSize = el.fontSize ?? el.lineWidth * 8
+                        let resolved = context.resolve(
+                            Text(text)
+                                .font(.system(size: fontSize, design: .rounded))
+                                .foregroundColor(color)
+                        )
+                        context.draw(resolved, at: point, anchor: .topLeading)
                     }
 
                 case .blur, .pixelate:
@@ -339,7 +356,8 @@ struct BottomToolbarView: View {
                     .frame(height: 20)
 
                 ActionButton(icon: "doc.on.doc", label: "Copy") {
-                    appState.screenCapture.copyToClipboard(appState.capturedImage ?? NSImage())
+                    guard let image = appState.capturedImage else { return }
+                    appState.screenCapture.copyToClipboard(image)
                 }
 
                 ActionButton(icon: "square.and.arrow.down", label: "Save") {

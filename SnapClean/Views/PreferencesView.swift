@@ -101,9 +101,9 @@ struct PreferencesTabButton: View {
 }
 
 struct GeneralPreferencesView: View {
-    @EnvironmentObject var appState: AppState
-    @State private var copyToClipboard = true
-    @State private var showPreview = true
+    @AppStorage("copyAfterCapture") private var copyToClipboard = false
+    @AppStorage("showPreviewAfterCapture") private var showPreview = true
+    @AppStorage("timerDuration") private var timerDuration = 3
 
     var body: some View {
         VStack(alignment: .leading, spacing: 24) {
@@ -160,12 +160,27 @@ struct GeneralPreferencesView: View {
                 HStack(spacing: 12) {
                     ForEach([3, 5, 10], id: \.self) { seconds in
                         Button {
+                            timerDuration = seconds
                         } label: {
                             Text("\(seconds)s")
                                 .font(.system(size: 13, weight: .medium, design: .rounded))
                                 .padding(.horizontal, 16)
                                 .padding(.vertical, 8)
-                                .background(Capsule().fill(Color.secondary.opacity(0.1)))
+                                .background(
+                                    Capsule().fill(
+                                        timerDuration == seconds
+                                            ? Color.accentColor.opacity(0.2)
+                                            : Color.secondary.opacity(0.1)
+                                    )
+                                )
+                                .overlay(
+                                    Capsule().stroke(
+                                        timerDuration == seconds
+                                            ? Color.accentColor
+                                            : Color.clear,
+                                        lineWidth: 1
+                                    )
+                                )
                         }
                         .buttonStyle(.plain)
                     }
@@ -228,8 +243,6 @@ struct ShortcutRow: View {
 }
 
 struct AppearancePreferencesView: View {
-    @EnvironmentObject var appState: AppState
-
     var body: some View {
         VStack(alignment: .leading, spacing: 24) {
             Text("Appearance")
@@ -237,8 +250,16 @@ struct AppearancePreferencesView: View {
 
             // Theme
             VStack(alignment: .leading, spacing: 8) {
-                Text("Theme")
-                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                HStack(spacing: 4) {
+                    Text("Theme")
+                        .font(.system(size: 13, weight: .semibold, design: .rounded))
+                    Text("Coming Soon")
+                        .font(.system(size: 10, weight: .medium, design: .rounded))
+                        .foregroundColor(.secondary)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Capsule().fill(Color.secondary.opacity(0.15)))
+                }
 
                 HStack(spacing: 12) {
                     Button {
@@ -256,6 +277,7 @@ struct AppearancePreferencesView: View {
                         )
                     }
                     .buttonStyle(.plain)
+                    .disabled(true)
 
                     Button {
                     } label: {
@@ -272,6 +294,7 @@ struct AppearancePreferencesView: View {
                         )
                     }
                     .buttonStyle(.plain)
+                    .disabled(true)
                 }
             }
 
@@ -279,8 +302,16 @@ struct AppearancePreferencesView: View {
 
             // Toolbar style
             VStack(alignment: .leading, spacing: 12) {
-                Text("Toolbar Style")
-                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                HStack(spacing: 4) {
+                    Text("Toolbar Style")
+                        .font(.system(size: 13, weight: .semibold, design: .rounded))
+                    Text("Coming Soon")
+                        .font(.system(size: 10, weight: .medium, design: .rounded))
+                        .foregroundColor(.secondary)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Capsule().fill(Color.secondary.opacity(0.15)))
+                }
 
                 Picker("", selection: .constant(0)) {
                     Text("Glass Effect").tag(0)
@@ -288,24 +319,7 @@ struct AppearancePreferencesView: View {
                     Text("Minimal").tag(2)
                 }
                 .pickerStyle(.segmented)
-            }
-
-            // Color accent
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Accent Color")
-                    .font(.system(size: 13, weight: .semibold, design: .rounded))
-
-                HStack(spacing: 8) {
-                    ForEach([Color.blue, .purple, .pink, .orange, .green], id: \.self) { color in
-                        Circle()
-                            .fill(color)
-                            .frame(width: 24, height: 24)
-                            .overlay(
-                                Circle()
-                                    .stroke(Color.secondary.opacity(0.3), lineWidth: 1)
-                            )
-                    }
-                }
+                .disabled(true)
             }
 
             Spacer()
@@ -315,6 +329,9 @@ struct AppearancePreferencesView: View {
 }
 
 struct StoragePreferencesView: View {
+    @EnvironmentObject var appState: AppState
+    @AppStorage("historyLimit") private var historyLimit = 50
+
     var body: some View {
         VStack(alignment: .leading, spacing: 24) {
             Text("Storage")
@@ -328,8 +345,8 @@ struct StoragePreferencesView: View {
                     Text("Keep last")
                         .font(.system(size: 13, design: .rounded))
 
-                    TextField("50", text: .constant("50"))
-                        .textFieldStyle(RoundedBorderTextFieldStyle())
+                    TextField("50", value: $historyLimit, format: .number)
+                        .textFieldStyle(.roundedBorder)
                         .frame(width: 60)
 
                     Text("screenshots")
@@ -342,12 +359,15 @@ struct StoragePreferencesView: View {
             VStack(alignment: .leading, spacing: 12) {
                 HStack {
                     Button("Clear History", role: .destructive) {
+                        appState.screenshotHistory.removeAll()
+                        appState.historyManager.saveHistory([])
                     }
                     .buttonStyle(.bordered)
 
                     Spacer()
 
                     Button("Open History Folder") {
+                        NSWorkspace.shared.open(appState.historyManager.saveDirectory)
                     }
                     .buttonStyle(.bordered)
                 }
@@ -368,14 +388,6 @@ struct PreferencesToggleStyle: ToggleStyle {
                 .labelsHidden()
                 .toggleStyle(SwitchToggleStyle(tint: .accentColor))
         }
-    }
-}
-
-struct RoundedBorderTextFieldStyle: TextFieldStyle {
-    func _body(configuration: TextField<Self._Label>) -> some View {
-        configuration
-            .textFieldStyle(.plain)
-            .padding(6)
     }
 }
 

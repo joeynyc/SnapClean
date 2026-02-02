@@ -30,16 +30,19 @@ class HotkeyManager {
     private func setupEventMonitor() {
         guard !hotkeys.isEmpty else { return }
 
-        eventMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            guard let self = self else { return event }
+        if let monitor = eventMonitor {
+            NSEvent.removeMonitor(monitor)
+            eventMonitor = nil
+        }
 
+        eventMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            guard let self = self else { return }
+
+            let maskedFlags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
             if let action = self.hotkeys[event.keyCode],
-               event.modifierFlags.contains(action.0) {
+               maskedFlags == action.0 {
                 action.1()
-                return nil
             }
-
-            return event
         }
     }
 }
