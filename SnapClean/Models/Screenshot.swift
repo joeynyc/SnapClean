@@ -159,7 +159,9 @@ class AppState: ObservableObject {
             queue: .main
         ) { [weak self] notification in
             guard let mode = notification.userInfo?["mode"] as? CaptureMode else { return }
-            self?.startCapture(mode: mode)
+            Task { @MainActor in
+                self?.startCapture(mode: mode)
+            }
         }
 
         NotificationCenter.default.addObserver(
@@ -167,7 +169,9 @@ class AppState: ObservableObject {
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            self?.showHistory = true
+            Task { @MainActor in
+                self?.showHistory = true
+            }
         }
     }
 
@@ -245,20 +249,22 @@ class AppState: ObservableObject {
         captureTimer?.invalidate()
         captureCountdown = timerDuration
         captureTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
-            guard let self else { return }
-            if self.captureCountdown > 1 {
-                self.captureCountdown -= 1
-                return
-            }
+            Task { @MainActor in
+                guard let self else { return }
+                if self.captureCountdown > 1 {
+                    self.captureCountdown -= 1
+                    return
+                }
 
-            self.captureCountdown = 0
-            self.captureTimer?.invalidate()
-            self.captureTimer = nil
+                self.captureCountdown = 0
+                self.captureTimer?.invalidate()
+                self.captureTimer = nil
 
-            if let image = self.screenCapture.captureFullScreen() {
-                self.handleCapturedImage(image)
-            } else {
-                self.endCapture(showMainWindow: self.wasMainWindowVisibleBeforeCapture)
+                if let image = self.screenCapture.captureFullScreen() {
+                    self.handleCapturedImage(image)
+                } else {
+                    self.endCapture(showMainWindow: self.wasMainWindowVisibleBeforeCapture)
+                }
             }
         }
     }
@@ -346,6 +352,6 @@ class ScreenshotHistoryManager {
 
     func deleteItem(_ item: ScreenshotItem) {
         try? FileManager.default.removeItem(atPath: item.filePath)
-        loadHistory()
+        _ = loadHistory()
     }
 }
