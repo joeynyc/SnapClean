@@ -8,6 +8,12 @@ enum CaptureMode {
     case screen
 }
 
+enum ScreenCapturePermissionStatus {
+    case unknown
+    case granted
+    case denied
+}
+
 enum AnnotationTool: String, CaseIterable, Identifiable {
     case arrow = "Arrow"
     case text = "Text"
@@ -114,6 +120,7 @@ class AppState: ObservableObject {
 
     @Published var isTransparentBackground = false
     @Published var captureCountdown: Int = 0
+    @Published private(set) var screenCapturePermissionStatus: ScreenCapturePermissionStatus = .unknown
 
     let screenCapture = ScreenCaptureService()
     let historyManager = ScreenshotHistoryManager()
@@ -156,6 +163,7 @@ class AppState: ObservableObject {
     init() {
         loadHistory()
         setupNotifications()
+        refreshScreenCapturePermissionStatus()
     }
 
     private func setupNotifications() {
@@ -179,13 +187,27 @@ class AppState: ObservableObject {
                 self?.showHistory = true
             }
         }
+
+        NotificationCenter.default.addObserver(
+            forName: NSApplication.didBecomeActiveNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                self?.refreshScreenCapturePermissionStatus()
+            }
+        }
     }
 
     func startCapture(mode: CaptureMode) {
-        if !CGPreflightScreenCaptureAccess() {
-            requestScreenCaptureAccessIfNeeded()
+        if !hasScreenCaptureAccess() {
+            if !requestScreenCaptureAccess() {
+                screenCapturePermissionStatus = .denied
+                revealMainWindowForPermissionGuidance()
+            }
             return
         }
+        screenCapturePermissionStatus = .granted
         currentCaptureMode = mode
         isCapturing = true
         captureCountdown = 0
@@ -289,12 +311,36 @@ class AppState: ObservableObject {
         }
     }
 
-    private func requestScreenCaptureAccessIfNeeded() {
-        let key = "didRequestScreenCaptureAccess"
-        if UserDefaults.standard.bool(forKey: key) == false {
-            UserDefaults.standard.set(true, forKey: key)
-            _ = CGRequestScreenCaptureAccess()
+    func refreshScreenCapturePermissionStatus() {
+        if hasScreenCaptureAccess() {
+            screenCapturePermissionStatus = .granted
+        } else if screenCapturePermissionStatus != .denied {
+            screenCapturePermissionStatus = .unknown
         }
+    }
+
+    func openScreenCaptureSettings() {
+        guard let settingsURL = URL(
+            string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture"
+        ) else { return }
+        _ = NSWorkspace.shared.open(settingsURL)
+    }
+
+    private func hasScreenCaptureAccess() -> Bool {
+        CGPreflightScreenCaptureAccess()
+    }
+
+    private func requestScreenCaptureAccess() -> Bool {
+        let granted = CGRequestScreenCaptureAccess()
+        screenCapturePermissionStatus = granted ? .granted : .denied
+        return granted
+    }
+
+    private func revealMainWindowForPermissionGuidance() {
+        if let window = mainWindow {
+            window.makeKeyAndOrderFront(nil)
+        }
+        NSApp.activate(ignoringOtherApps: true)
     }
 
     func addAnnotation(_ element: AnnotationElement) {

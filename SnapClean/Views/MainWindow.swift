@@ -59,6 +59,10 @@ struct WelcomeView: View {
 
             // Quick Actions
             VStack(spacing: 16) {
+                if appState.screenCapturePermissionStatus == .denied {
+                    ScreenCapturePermissionNotice()
+                }
+
                 CaptureButton(
                     title: "Capture Region",
                     subtitle: "Draw a rectangle to capture",
@@ -97,6 +101,46 @@ struct WelcomeView: View {
             }
         }
         .background(VisualEffectView(material: .windowBackground, blendingMode: .behindWindow))
+        .onAppear {
+            appState.refreshScreenCapturePermissionStatus()
+        }
+    }
+}
+
+struct ScreenCapturePermissionNotice: View {
+    @EnvironmentObject var appState: AppState
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "exclamationmark.shield")
+                .font(.system(size: 20, weight: .semibold))
+                .foregroundStyle(.orange)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Screen Recording Permission Needed")
+                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                Text("Enable Screen Recording for SnapClean in System Settings to capture screenshots.")
+                    .font(.system(size: 11, weight: .regular))
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer()
+
+            Button("Open System Settings") {
+                appState.openScreenCaptureSettings()
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.small)
+        }
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color.orange.opacity(0.08))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color.orange.opacity(0.35), lineWidth: 1)
+        )
     }
 }
 

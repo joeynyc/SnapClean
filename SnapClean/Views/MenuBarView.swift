@@ -27,6 +27,11 @@ struct MenuBarView: View {
 
             Divider()
 
+            if appState.screenCapturePermissionStatus == .denied {
+                MenuBarScreenCapturePermissionNotice()
+                Divider()
+            }
+
             // Quick capture buttons
             MenuButton(
                 title: "Capture Region",
@@ -125,9 +130,31 @@ struct MenuBarView: View {
         .frame(width: 250)
         .onAppear {
             appState.loadHistory()
+            appState.refreshScreenCapturePermissionStatus()
         }
         .sheet(isPresented: $appState.showHistory) {
             HistoryPanel()
+        }
+    }
+}
+
+struct MenuBarScreenCapturePermissionNotice: View {
+    @EnvironmentObject var appState: AppState
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.orange)
+                Text("Screen Recording is Off")
+                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+            }
+
+            Button("Open System Settings") {
+                appState.openScreenCaptureSettings()
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
         }
     }
 }
