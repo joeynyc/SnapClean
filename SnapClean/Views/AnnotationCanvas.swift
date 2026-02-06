@@ -14,6 +14,7 @@ struct AnnotationCanvasView: View {
 
     var body: some View {
         GeometryReader { geometry in
+            let imageFrame = imageDisplayFrame(in: geometry.size)
             ZStack {
                 // Background
                 Color(NSColor.controlBackgroundColor)
@@ -28,7 +29,7 @@ struct AnnotationCanvasView: View {
 
                         // Annotations layer
                         ForEach(appState.annotations) { element in
-                            AnnotationRenderer(element: element)
+                            AnnotationRenderer(element: element.denormalized(in: imageFrame))
                         }
 
                         // Current drawing
@@ -62,14 +63,18 @@ struct AnnotationCanvasView: View {
                                 .background(Color.clear)
                                 .onDisappear {
                                     if !textInput.isEmpty {
-                                        let element = AnnotationElement(
+                                        let fontSize = appState.lineWidth * 8
+                                        if let element = AnnotationElement.normalized(
                                             tool: .text,
                                             points: [currentEndPoint],
                                             color: appState.selectedColor,
                                             lineWidth: appState.lineWidth,
-                                            text: textInput
-                                        )
-                                        appState.addAnnotation(element)
+                                            text: textInput,
+                                            fontSize: fontSize,
+                                            in: imageFrame
+                                        ) {
+                                            appState.addAnnotation(element)
+                                        }
                                     }
                                     textInput = ""
                                     isEnteringText = false
@@ -87,104 +92,103 @@ struct AnnotationCanvasView: View {
             .overlay(alignment: .bottom) {
                 BottomToolbarView()
             }
-            .onAppear {
-                appState.annotationCanvasSize = geometrySizeClamped(to: geometry.size)
-            }
-            .onChange(of: geometry.size) { newSize in
-                appState.annotationCanvasSize = geometrySizeClamped(to: newSize)
-            }
+            .simultaneousGesture(
+                SpatialTapGesture()
+                    .onEnded { value in
+                        if appState.selectedTool == .text && !isDrawing {
+                            currentEndPoint = value.location
+                            isEnteringText = true
+                        }
+                    }
+            )
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { value in
+                        if isEnteringText {
+                            currentEndPoint = value.location
+                            return
+                        }
+
+                        if !isDrawing {
+                            isDrawing = true
+                            currentStartPoint = value.location
+                            currentEndPoint = value.location
+
+                            if appState.selectedTool == .pencil {
+                                currentPath = [value.location]
+                            }
+                        } else {
+                            currentEndPoint = value.location
+
+                            if appState.selectedTool == .pencil {
+                                currentPath.append(value.location)
+                            }
+                        }
+                    }
+                    .onEnded { value in
+                        if isEnteringText {
+                            return
+                        }
+
+                        let element: AnnotationElement?
+                        switch appState.selectedTool {
+                        case .arrow:
+                            element = AnnotationElement.normalized(
+                                tool: .arrow,
+                                color: appState.selectedColor,
+                                lineWidth: appState.lineWidth,
+                                startPoint: currentStartPoint,
+                                endPoint: value.location,
+                                in: imageFrame
+                            )
+                        case .rectangle:
+                            element = AnnotationElement.normalized(
+                                tool: .rectangle,
+                                color: appState.selectedColor,
+                                lineWidth: appState.lineWidth,
+                                startPoint: currentStartPoint,
+                                endPoint: value.location,
+                                in: imageFrame
+                            )
+                        case .oval:
+                            element = AnnotationElement.normalized(
+                                tool: .oval,
+                                color: appState.selectedColor,
+                                lineWidth: appState.lineWidth,
+                                startPoint: currentStartPoint,
+                                endPoint: value.location,
+                                in: imageFrame
+                            )
+                        case .line:
+                            element = AnnotationElement.normalized(
+                                tool: .line,
+                                color: appState.selectedColor,
+                                lineWidth: appState.lineWidth,
+                                startPoint: currentStartPoint,
+                                endPoint: value.location,
+                                in: imageFrame
+                            )
+                        case .pencil:
+                            element = AnnotationElement.normalized(
+                                tool: .pencil,
+                                points: currentPath,
+                                color: appState.selectedColor,
+                                lineWidth: appState.lineWidth,
+                                in: imageFrame
+                            )
+                        default:
+                            element = nil
+                        }
+
+                        if let el = element {
+                            appState.addAnnotation(el)
+                        }
+
+                        isDrawing = false
+                        currentPath = []
+                    }
+            )
         }
-        .simultaneousGesture(
-            SpatialTapGesture()
-                .onEnded { value in
-                    if appState.selectedTool == .text && !isDrawing {
-                        currentEndPoint = value.location
-                        isEnteringText = true
-                    }
-                }
-        )
-        .gesture(
-            DragGesture(minimumDistance: 0)
-                .onChanged { value in
-                    if isEnteringText {
-                        currentEndPoint = value.location
-                        return
-                    }
-
-                    if !isDrawing {
-                        isDrawing = true
-                        currentStartPoint = value.location
-                        currentEndPoint = value.location
-
-                        if appState.selectedTool == .pencil {
-                            currentPath = [value.location]
-                        }
-                    } else {
-                        currentEndPoint = value.location
-
-                        if appState.selectedTool == .pencil {
-                            currentPath.append(value.location)
-                        }
-                    }
-                }
-                .onEnded { value in
-                    if isEnteringText {
-                        return
-                    }
-
-                    let element: AnnotationElement?
-                    switch appState.selectedTool {
-                    case .arrow:
-                        element = AnnotationElement(
-                            tool: .arrow,
-                            color: appState.selectedColor,
-                            lineWidth: appState.lineWidth,
-                            startPoint: currentStartPoint,
-                            endPoint: value.location
-                        )
-                    case .rectangle:
-                        element = AnnotationElement(
-                            tool: .rectangle,
-                            color: appState.selectedColor,
-                            lineWidth: appState.lineWidth,
-                            startPoint: currentStartPoint,
-                            endPoint: value.location
-                        )
-                    case .oval:
-                        element = AnnotationElement(
-                            tool: .oval,
-                            color: appState.selectedColor,
-                            lineWidth: appState.lineWidth,
-                            startPoint: currentStartPoint,
-                            endPoint: value.location
-                        )
-                    case .line:
-                        element = AnnotationElement(
-                            tool: .line,
-                            color: appState.selectedColor,
-                            lineWidth: appState.lineWidth,
-                            startPoint: currentStartPoint,
-                            endPoint: value.location
-                        )
-                    case .pencil:
-                        element = AnnotationElement(
-                            tool: .pencil,
-                            points: currentPath,
-                            color: appState.selectedColor,
-                            lineWidth: appState.lineWidth
-                        )
-                    default:
-                        element = nil
-                    }
-
-                    if let el = element {
-                        appState.addAnnotation(el)
-                    }
-
-                    isDrawing = false
-                    currentPath = []
-                }
-        )
         .onAppear {
             keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [self] event in
                 let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
@@ -219,6 +223,23 @@ struct AnnotationCanvasView: View {
 
     private func geometrySizeClamped(to size: CGSize) -> CGSize {
         CGSize(width: max(size.width, 1), height: max(size.height, 1))
+    }
+
+    private func imageDisplayFrame(in availableSize: CGSize) -> CGRect {
+        let size = geometrySizeClamped(to: availableSize)
+        guard image.size.width > 0, image.size.height > 0 else {
+            return CGRect(origin: .zero, size: size)
+        }
+
+        let scale = min(size.width / image.size.width, size.height / image.size.height)
+        let width = image.size.width * scale
+        let height = image.size.height * scale
+        return CGRect(
+            x: (size.width - width) / 2,
+            y: (size.height - height) / 2,
+            width: width,
+            height: height
+        )
     }
 }
 

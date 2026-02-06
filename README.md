@@ -4,7 +4,7 @@ A fast, native macOS screenshot tool with annotation, history, and pin-to-screen
 
 ## Features
 
-**Capture** — Region select, window pick, or full screen. Timed capture with 3/5/10s countdown. Auto-saves to Downloads and copies to clipboard.
+**Capture** — Region select, window pick, or full screen. Timed capture with 3/5/10s countdown. Auto-saves to `Documents/SnapClean/History` and copies to clipboard.
 
 **Annotate** — Arrows, text, shapes, lines, freehand drawing, blur, and pixelate. Full color picker, undo/redo, and live preview before saving.
 
@@ -29,6 +29,7 @@ A fast, native macOS screenshot tool with annotation, history, and pin-to-screen
 ## Requirements
 
 - macOS 14.0 (Sonoma) or later
+- Xcode 26.0 or later (for building from source)
 - Screen Recording and Accessibility permissions
 
 ## Build
@@ -42,4 +43,3 @@ xcodegen generate        # generate Xcode project
 ## License
 
 MIT
-

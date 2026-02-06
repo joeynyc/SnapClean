@@ -111,7 +111,7 @@ struct PinToolbarView: View {
             // Save
             Button {
                 if let image = appState.pinnedImage {
-                    if let path = appState.screenCapture.saveImage(image) {
+                    if let path = appState.screenCapture.saveImage(image, to: appState.historyManager.saveDirectory) {
                         appState.addToHistory(path: path, image: image)
                     }
                 }
@@ -126,12 +126,12 @@ struct PinToolbarView: View {
                     )
             }
             .buttonStyle(.plain)
-            .help("Save to Downloads")
+            .help("Save to History Folder")
 
             // Open in Finder
             Button {
                 if let image = appState.pinnedImage {
-                    if let path = appState.screenCapture.saveImage(image) {
+                    if let path = appState.screenCapture.saveImage(image, to: appState.historyManager.saveDirectory) {
                         appState.screenCapture.openInFinder(path)
                     }
                 }

@@ -109,11 +109,11 @@ struct GeneralPreferencesView: View {
         VStack(alignment: .leading, spacing: 24) {
             // Save location
             VStack(alignment: .leading, spacing: 8) {
-                Text("Default Save Location")
-                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                    Text("Default Save Location")
+                        .font(.system(size: 13, weight: .semibold, design: .rounded))
 
                 HStack {
-                    Text("Downloads")
+                    Text("Documents/SnapClean/History")
                         .font(.system(size: 13, design: .rounded))
                         .padding(.horizontal, 12)
                         .padding(.vertical, 8)
@@ -359,8 +359,7 @@ struct StoragePreferencesView: View {
             VStack(alignment: .leading, spacing: 12) {
                 HStack {
                     Button("Clear History", role: .destructive) {
-                        appState.screenshotHistory.removeAll()
-                        appState.historyManager.saveHistory([])
+                        appState.clearHistory()
                     }
                     .buttonStyle(.bordered)
 

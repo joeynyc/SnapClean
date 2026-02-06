@@ -83,6 +83,65 @@ struct AnnotationElement: Identifiable, Equatable {
     }
 }
 
+extension AnnotationElement {
+    static func normalized(
+        tool: AnnotationTool,
+        points: [CGPoint] = [],
+        color: Color,
+        lineWidth: CGFloat,
+        startPoint: CGPoint? = nil,
+        endPoint: CGPoint? = nil,
+        text: String? = nil,
+        fontSize: CGFloat? = nil,
+        in rect: CGRect
+    ) -> AnnotationElement? {
+        guard rect.width > 0, rect.height > 0 else { return nil }
+        let baseDimension = max(min(rect.width, rect.height), 1)
+        return AnnotationElement(
+            tool: tool,
+            points: points.map { normalize($0, in: rect) },
+            color: color,
+            lineWidth: lineWidth / baseDimension,
+            startPoint: startPoint.map { normalize($0, in: rect) },
+            endPoint: endPoint.map { normalize($0, in: rect) },
+            text: text,
+            fontSize: fontSize.map { $0 / baseDimension }
+        )
+    }
+
+    func denormalized(in rect: CGRect) -> AnnotationElement {
+        let baseDimension = max(min(rect.width, rect.height), 1)
+        return AnnotationElement(
+            id: id,
+            tool: tool,
+            points: points.map { Self.denormalize($0, in: rect) },
+            color: color,
+            lineWidth: max(lineWidth * baseDimension, 1),
+            startPoint: startPoint.map { Self.denormalize($0, in: rect) },
+            endPoint: endPoint.map { Self.denormalize($0, in: rect) },
+            text: text,
+            fontSize: fontSize.map { max($0 * baseDimension, 1) }
+        )
+    }
+
+    private static func normalize(_ point: CGPoint, in rect: CGRect) -> CGPoint {
+        let normalizedX = (point.x - rect.minX) / rect.width
+        let normalizedY = (point.y - rect.minY) / rect.height
+        return CGPoint(x: clamp(normalizedX), y: clamp(normalizedY))
+    }
+
+    private static func denormalize(_ point: CGPoint, in rect: CGRect) -> CGPoint {
+        CGPoint(
+            x: rect.minX + point.x * rect.width,
+            y: rect.minY + point.y * rect.height
+        )
+    }
+
+    private static func clamp(_ value: CGFloat) -> CGFloat {
+        min(max(value, 0), 1)
+    }
+}
+
 struct ScreenshotItem: Identifiable, Codable {
     let id: UUID
     let date: Date
@@ -116,7 +175,6 @@ class AppState: ObservableObject {
     @Published var annotations: [AnnotationElement] = []
     @Published var undoStack: [[AnnotationElement]] = []
     @Published var redoStack: [[AnnotationElement]] = []
-    @Published var annotationCanvasSize: CGSize = .zero
 
     @Published var isTransparentBackground = false
     @Published var captureCountdown: Int = 0
@@ -125,6 +183,7 @@ class AppState: ObservableObject {
     let screenCapture = ScreenCaptureService()
     let historyManager = ScreenshotHistoryManager()
     private let captureOverlayController = CaptureOverlayWindowController()
+    private let screenCaptureAccessPromptedKey = "didPromptScreenCaptureAccess"
     private var captureTimer: Timer?
     private var wasMainWindowVisibleBeforeCapture = false
     weak var mainWindow: NSWindow?
@@ -232,7 +291,7 @@ class AppState: ObservableObject {
         if showPreviewAfterCapture {
             showAnnotationCanvas = true
         } else {
-            if let path = screenCapture.saveImage(image) {
+            if let path = screenCapture.saveImage(image, to: historyManager.saveDirectory) {
                 addToHistory(path: path, image: image)
             }
         }
@@ -251,7 +310,7 @@ class AppState: ObservableObject {
     func saveAnnotation() {
         let imageToSave = currentEditableImage()
         guard let imageToSave else { return }
-        guard let savedPath = screenCapture.saveImage(imageToSave) else {
+        guard let savedPath = screenCapture.saveImage(imageToSave, to: historyManager.saveDirectory) else {
             NSLog("SnapClean: Failed to save annotation")
             return
         }
@@ -261,17 +320,63 @@ class AppState: ObservableObject {
     }
 
     func addToHistory(path: String, image: NSImage) {
-        let thumbnail = image.resize(to: NSSize(width: 150, height: 100))?.tiffRepresentation
-        let item = ScreenshotItem(date: Date(), filePath: path, thumbnail: thumbnail)
+        let itemID = UUID()
+        let capturedAt = Date()
+
+        let item = ScreenshotItem(id: itemID, date: capturedAt, filePath: path, thumbnail: nil)
         screenshotHistory.insert(item, at: 0)
-        if screenshotHistory.count > historyLimit {
-            screenshotHistory.removeLast()
-        }
+        let removed = trimHistoryToLimit()
         historyManager.saveHistory(screenshotHistory)
+        if !removed.isEmpty {
+            historyManager.removeFiles(atPaths: removed.map(\.filePath))
+        }
+
+        DispatchQueue.global(qos: .utility).async { [weak self] in
+            guard let self else { return }
+            let thumbnail = image.jpegThumbnailData(maxSize: NSSize(width: 300, height: 200))
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                guard let index = self.screenshotHistory.firstIndex(where: { $0.id == itemID }) else {
+                    return
+                }
+                self.screenshotHistory[index] = ScreenshotItem(
+                    id: itemID,
+                    date: capturedAt,
+                    filePath: path,
+                    thumbnail: thumbnail
+                )
+                self.historyManager.saveHistory(self.screenshotHistory)
+            }
+        }
     }
 
     func loadHistory() {
         screenshotHistory = historyManager.loadHistory()
+        let removed = trimHistoryToLimit()
+        historyManager.saveHistory(screenshotHistory)
+        if !removed.isEmpty {
+            historyManager.removeFiles(atPaths: removed.map(\.filePath))
+        }
+    }
+
+    func clearHistory() {
+        let removed = screenshotHistory
+        screenshotHistory.removeAll()
+        historyManager.saveHistory([])
+        historyManager.removeFiles(atPaths: removed.map(\.filePath))
+    }
+
+    func deleteHistoryItem(_ item: ScreenshotItem) {
+        screenshotHistory.removeAll { $0.id == item.id }
+        historyManager.saveHistory(screenshotHistory)
+        historyManager.removeFiles(atPaths: [item.filePath])
+    }
+
+    private func trimHistoryToLimit() -> [ScreenshotItem] {
+        guard screenshotHistory.count > historyLimit else { return [] }
+        let overflow = Array(screenshotHistory.suffix(from: historyLimit))
+        screenshotHistory.removeLast(overflow.count)
+        return overflow
     }
 
     private func startScreenCountdown() {
@@ -314,7 +419,9 @@ class AppState: ObservableObject {
     func refreshScreenCapturePermissionStatus() {
         if hasScreenCaptureAccess() {
             screenCapturePermissionStatus = .granted
-        } else if screenCapturePermissionStatus != .denied {
+        } else if UserDefaults.standard.bool(forKey: screenCaptureAccessPromptedKey) {
+            screenCapturePermissionStatus = .denied
+        } else {
             screenCapturePermissionStatus = .unknown
         }
     }
@@ -331,6 +438,7 @@ class AppState: ObservableObject {
     }
 
     private func requestScreenCaptureAccess() -> Bool {
+        UserDefaults.standard.set(true, forKey: screenCaptureAccessPromptedKey)
         let granted = CGRequestScreenCaptureAccess()
         screenCapturePermissionStatus = granted ? .granted : .denied
         return granted
@@ -384,23 +492,14 @@ class AppState: ObservableObject {
 
     @MainActor
     private func renderAnnotatedImage() -> NSImage? {
-        guard let image = capturedImage, annotationCanvasSize != .zero else { return nil }
+        guard let image = capturedImage else { return nil }
         guard #available(macOS 13.0, *) else { return nil }
 
         let exportSize = image.size
         guard exportSize.width > 0, exportSize.height > 0 else { return nil }
 
-        let scaleX = exportSize.width / annotationCanvasSize.width
-        let scaleY = exportSize.height / annotationCanvasSize.height
-        let annotationScale = min(scaleX, scaleY)
-        let scaledAnnotations = annotations.map { element in
-            scaleAnnotation(
-                element,
-                scaleX: scaleX,
-                scaleY: scaleY,
-                annotationScale: annotationScale
-            )
-        }
+        let exportRect = CGRect(origin: .zero, size: exportSize)
+        let scaledAnnotations = annotations.map { $0.denormalized(in: exportRect) }
 
         let content = AnnotationExportView(image: image, annotations: scaledAnnotations)
             .frame(width: exportSize.width, height: exportSize.height)
@@ -421,63 +520,70 @@ class AppState: ObservableObject {
         return NSScreen.main?.backingScaleFactor ?? 2.0
     }
 
-    private func scaleAnnotation(
-        _ element: AnnotationElement,
-        scaleX: CGFloat,
-        scaleY: CGFloat,
-        annotationScale: CGFloat
-    ) -> AnnotationElement {
-        let scaledPoints = element.points.map { point in
-            CGPoint(x: point.x * scaleX, y: point.y * scaleY)
-        }
-        let scaledStart = element.startPoint.map { point in
-            CGPoint(x: point.x * scaleX, y: point.y * scaleY)
-        }
-        let scaledEnd = element.endPoint.map { point in
-            CGPoint(x: point.x * scaleX, y: point.y * scaleY)
-        }
-        let scaledFont = element.fontSize.map { $0 * annotationScale }
-
-        return AnnotationElement(
-            id: element.id,
-            tool: element.tool,
-            points: scaledPoints,
-            color: element.color,
-            lineWidth: element.lineWidth * annotationScale,
-            startPoint: scaledStart,
-            endPoint: scaledEnd,
-            text: element.text,
-            fontSize: scaledFont
-        )
-    }
 }
 
 class ScreenshotHistoryManager {
-    private let historyKey = "screenshotHistory"
-    let saveDirectory: URL
-
-    init() {
+    static var defaultSaveDirectory: URL {
         let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        saveDirectory = documentsPath.appendingPathComponent("SnapClean/History", isDirectory: true)
+        return documentsPath.appendingPathComponent("SnapClean/History", isDirectory: true)
+    }
+
+    private let historyKey = "screenshotHistory"
+    private let historyFileName = "history.json"
+    private let ioQueue = DispatchQueue(label: "com.snapclean.history-io", qos: .utility)
+    let saveDirectory: URL
+    private let historyFileURL: URL
+
+    init(saveDirectory: URL = ScreenshotHistoryManager.defaultSaveDirectory) {
+        self.saveDirectory = saveDirectory
+        historyFileURL = saveDirectory.appendingPathComponent(historyFileName)
         try? FileManager.default.createDirectory(at: saveDirectory, withIntermediateDirectories: true)
+        migrateFromLegacyUserDefaultsIfNeeded()
     }
 
     func saveHistory(_ history: [ScreenshotItem]) {
-        if let data = try? JSONEncoder().encode(history) {
-            UserDefaults.standard.set(data, forKey: historyKey)
+        ioQueue.async { [historyFileURL] in
+            do {
+                let data = try JSONEncoder().encode(history)
+                try data.write(to: historyFileURL, options: .atomic)
+            } catch {
+                NSLog("SnapClean: Failed to save history: \(error.localizedDescription)")
+            }
         }
     }
 
     func loadHistory() -> [ScreenshotItem] {
-        guard let data = UserDefaults.standard.data(forKey: historyKey),
-              let history = try? JSONDecoder().decode([ScreenshotItem].self, from: data) else {
-            return []
+        ioQueue.sync {
+            guard let data = try? Data(contentsOf: historyFileURL),
+                  let history = try? JSONDecoder().decode([ScreenshotItem].self, from: data) else {
+                return []
+            }
+            return history.filter { FileManager.default.fileExists(atPath: $0.filePath) }
         }
-        return history.filter { FileManager.default.fileExists(atPath: $0.filePath) }
     }
 
-    func deleteItem(_ item: ScreenshotItem) {
-        try? FileManager.default.removeItem(atPath: item.filePath)
-        _ = loadHistory()
+    func removeFiles(atPaths paths: [String]) {
+        let uniquePaths = Array(Set(paths))
+        ioQueue.async {
+            for path in uniquePaths where FileManager.default.fileExists(atPath: path) {
+                try? FileManager.default.removeItem(atPath: path)
+            }
+        }
+    }
+
+    private func migrateFromLegacyUserDefaultsIfNeeded() {
+        guard !FileManager.default.fileExists(atPath: historyFileURL.path),
+              let data = UserDefaults.standard.data(forKey: historyKey),
+              let history = try? JSONDecoder().decode([ScreenshotItem].self, from: data) else {
+            return
+        }
+
+        do {
+            let encoded = try JSONEncoder().encode(history)
+            try encoded.write(to: historyFileURL, options: .atomic)
+            UserDefaults.standard.removeObject(forKey: historyKey)
+        } catch {
+            NSLog("SnapClean: Failed to migrate history store: \(error.localizedDescription)")
+        }
     }
 }

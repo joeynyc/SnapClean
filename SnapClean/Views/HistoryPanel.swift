@@ -129,8 +129,7 @@ struct HistoryItemView: View {
                 }
 
                 ActionIconButton(icon: "trash", tooltip: "Delete") {
-                    appState.historyManager.deleteItem(item)
-                    appState.loadHistory()
+                    appState.deleteHistoryItem(item)
                 }
             }
         }

@@ -96,7 +96,7 @@ class ScreenCaptureService {
     }
 
     func saveImage(_ image: NSImage, to folder: URL? = nil) -> String? {
-        let saveFolder = folder ?? FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask)[0]
+        let saveFolder = folder ?? ScreenshotHistoryManager.defaultSaveDirectory
         let fileName = "SnapClean_\(dateFormatter.string(from: Date())).png"
         let fileURL = saveFolder.appendingPathComponent(fileName)
 
@@ -107,6 +107,7 @@ class ScreenCaptureService {
         }
 
         do {
+            try FileManager.default.createDirectory(at: saveFolder, withIntermediateDirectories: true)
             try pngData.write(to: fileURL)
             return fileURL.path
         } catch {
@@ -196,6 +197,25 @@ extension NSImage {
         guard let cgImage = context.createCGImage(composited, from: ciImage.extent) else { return nil }
 
         return NSImage(cgImage: cgImage, size: self.size)
+    }
+
+    func jpegThumbnailData(maxSize: NSSize, compression: CGFloat = 0.72) -> Data? {
+        guard let resized = resizedToFit(maxSize: maxSize),
+              let tiff = resized.tiffRepresentation,
+              let rep = NSBitmapImageRep(data: tiff) else {
+            return nil
+        }
+        return rep.representation(
+            using: .jpeg,
+            properties: [.compressionFactor: min(max(compression, 0.1), 1.0)]
+        )
+    }
+
+    private func resizedToFit(maxSize: NSSize) -> NSImage? {
+        guard size.width > 0, size.height > 0 else { return nil }
+        let scale = min(maxSize.width / size.width, maxSize.height / size.height)
+        let target = NSSize(width: size.width * scale, height: size.height * scale)
+        return resize(to: target)
     }
 }
 import AVFoundation

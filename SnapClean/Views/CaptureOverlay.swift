@@ -9,7 +9,6 @@ struct CaptureOverlay: View {
     @State private var startPoint: CGPoint = .zero
     @State private var currentPoint: CGPoint = .zero
     @State private var selectedWindow: (id: CGWindowID, name: String, bounds: CGRect)?
-    @State private var keyMonitor: Any?
 
     var body: some View {
         ZStack {
@@ -38,21 +37,6 @@ struct CaptureOverlay: View {
                         .background(Capsule().fill(Color.black.opacity(0.5)))
                 }
                 .padding(.bottom, 20)
-            }
-        }
-        .onAppear {
-            keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
-                if event.keyCode == 53 { // ESC
-                    cancelCapture()
-                    return nil
-                }
-                return event
-            }
-        }
-        .onDisappear {
-            if let monitor = keyMonitor {
-                NSEvent.removeMonitor(monitor)
-                keyMonitor = nil
             }
         }
     }
@@ -199,10 +183,6 @@ struct CaptureOverlay: View {
         if let image = appState.screenCapture.captureWindowByID(window.id, bounds: window.bounds) {
             appState.handleCapturedImage(image)
         }
-    }
-
-    private func cancelCapture() {
-        appState.cancelCapture()
     }
 }
 

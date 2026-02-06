@@ -1,71 +1,149 @@
 import Foundation
-import Cocoa
+import AppKit
 import Carbon
 
 class HotkeyManager {
     static let shared = HotkeyManager()
 
-    private var hotkeys: [UInt16: (NSEvent.ModifierFlags, () -> Void)] = [:]
-    private var globalMonitor: Any?
-    private var localMonitor: Any?
+    private struct HotkeySignature: Hashable {
+        let keyCode: UInt16
+        let modifiers: UInt32
+    }
+
+    private let eventSignature: OSType = 0x53434E50 // SCNP
+    private var eventHandlerRef: EventHandlerRef?
+    private var nextHotkeyID: UInt32 = 1
+    private var hotkeyActions: [UInt32: () -> Void] = [:]
+    private var hotkeyRefs: [UInt32: EventHotKeyRef] = [:]
+    private var signatureToHotkeyID: [HotkeySignature: UInt32] = [:]
 
     private init() {}
 
     func register(keyCode: UInt16, modifiers: NSEvent.ModifierFlags, action: @escaping () -> Void) {
-        hotkeys[keyCode] = (modifiers, action)
-        setupEventMonitors()
+        let carbonModifiers = toCarbonModifiers(modifiers)
+        let signature = HotkeySignature(keyCode: keyCode, modifiers: carbonModifiers)
+
+        if let existingID = signatureToHotkeyID[signature] {
+            unregister(hotkeyID: existingID)
+        }
+
+        installEventHandlerIfNeeded()
+
+        let hotkeyID = nextHotkeyID
+        nextHotkeyID &+= 1
+
+        let carbonHotkeyID = EventHotKeyID(signature: eventSignature, id: hotkeyID)
+        var hotkeyRef: EventHotKeyRef?
+        let status = RegisterEventHotKey(
+            UInt32(keyCode),
+            carbonModifiers,
+            carbonHotkeyID,
+            GetApplicationEventTarget(),
+            0,
+            &hotkeyRef
+        )
+
+        guard status == noErr, let hotkeyRef else {
+            NSLog("SnapClean: Failed to register hotkey keyCode=\(keyCode) modifiers=\(carbonModifiers) status=\(status)")
+            return
+        }
+
+        hotkeyActions[hotkeyID] = action
+        hotkeyRefs[hotkeyID] = hotkeyRef
+        signatureToHotkeyID[signature] = hotkeyID
     }
 
     func unregister(keyCode: UInt16) {
-        hotkeys.removeValue(forKey: keyCode)
+        let matching = signatureToHotkeyID.filter { $0.key.keyCode == keyCode }.map(\.value)
+        for hotkeyID in matching {
+            unregister(hotkeyID: hotkeyID)
+        }
     }
 
     func unregisterAll() {
-        hotkeys.removeAll()
-        if let monitor = globalMonitor {
-            NSEvent.removeMonitor(monitor)
-            globalMonitor = nil
+        for hotkeyID in hotkeyActions.keys {
+            unregister(hotkeyID: hotkeyID)
         }
-        if let monitor = localMonitor {
-            NSEvent.removeMonitor(monitor)
-            localMonitor = nil
+        if let eventHandlerRef {
+            RemoveEventHandler(eventHandlerRef)
+            self.eventHandlerRef = nil
         }
     }
 
-    private func handleKeyEvent(_ event: NSEvent) {
-        // Strip .function from flags — macOS always sets it for function keys,
-        // so without this, comparing against empty modifiers [] always fails.
-        let maskedFlags = event.modifierFlags
-            .intersection(.deviceIndependentFlagsMask)
-            .subtracting(.function)
+    private func installEventHandlerIfNeeded() {
+        guard eventHandlerRef == nil else { return }
 
-        if let (modifiers, action) = hotkeys[event.keyCode],
-           maskedFlags == modifiers {
+        var eventTypeSpec = EventTypeSpec(
+            eventClass: OSType(kEventClassKeyboard),
+            eventKind: UInt32(kEventHotKeyPressed)
+        )
+        let callback: EventHandlerUPP = { _, eventRef, userData in
+            guard let eventRef, let userData else { return noErr }
+            let manager = Unmanaged<HotkeyManager>.fromOpaque(userData).takeUnretainedValue()
+            return manager.handleHotkeyEvent(eventRef)
+        }
+
+        InstallEventHandler(
+            GetApplicationEventTarget(),
+            callback,
+            1,
+            &eventTypeSpec,
+            Unmanaged.passUnretained(self).toOpaque(),
+            &eventHandlerRef
+        )
+    }
+
+    private func handleHotkeyEvent(_ eventRef: EventRef) -> OSStatus {
+        var hotkeyID = EventHotKeyID()
+        let status = GetEventParameter(
+            eventRef,
+            EventParamName(kEventParamDirectObject),
+            EventParamType(typeEventHotKeyID),
+            nil,
+            MemoryLayout<EventHotKeyID>.size,
+            nil,
+            &hotkeyID
+        )
+        guard status == noErr else { return status }
+
+        if let action = hotkeyActions[hotkeyID.id] {
             action()
+            return noErr
+        }
+        return OSStatus(eventNotHandledErr)
+    }
+
+    private func unregister(hotkeyID: UInt32) {
+        guard let hotkeyRef = hotkeyRefs[hotkeyID] else { return }
+        UnregisterEventHotKey(hotkeyRef)
+        hotkeyRefs.removeValue(forKey: hotkeyID)
+        hotkeyActions.removeValue(forKey: hotkeyID)
+        signatureToHotkeyID = signatureToHotkeyID.filter { $0.value != hotkeyID }
+
+        if hotkeyActions.isEmpty, let eventHandlerRef {
+            RemoveEventHandler(eventHandlerRef)
+            self.eventHandlerRef = nil
         }
     }
 
-    private func setupEventMonitors() {
-        guard !hotkeys.isEmpty else { return }
+    private func toCarbonModifiers(_ modifiers: NSEvent.ModifierFlags) -> UInt32 {
+        let masked = modifiers.intersection(.deviceIndependentFlagsMask).subtracting(.function)
+        var carbonModifiers: UInt32 = 0
 
-        if let monitor = globalMonitor {
-            NSEvent.removeMonitor(monitor)
-            globalMonitor = nil
-        }
-        if let monitor = localMonitor {
-            NSEvent.removeMonitor(monitor)
-            localMonitor = nil
-        }
+        if masked.contains(.command) { carbonModifiers |= UInt32(cmdKey) }
+        if masked.contains(.option) { carbonModifiers |= UInt32(optionKey) }
+        if masked.contains(.control) { carbonModifiers |= UInt32(controlKey) }
+        if masked.contains(.shift) { carbonModifiers |= UInt32(shiftKey) }
 
-        // Global monitor: fires when other apps are focused
-        globalMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            self?.handleKeyEvent(event)
-        }
+        return carbonModifiers
+    }
 
-        // Local monitor: fires when this app is focused
-        localMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            self?.handleKeyEvent(event)
-            return event
+    deinit {
+        for hotkeyRef in hotkeyRefs.values {
+            UnregisterEventHotKey(hotkeyRef)
+        }
+        if let eventHandlerRef {
+            RemoveEventHandler(eventHandlerRef)
         }
     }
 }
