@@ -1,6 +1,7 @@
 import SwiftUI
 import Combine
 import AppKit
+import ScreenCaptureKit
 
 enum CaptureMode {
     case region
@@ -259,23 +260,28 @@ class AppState: ObservableObject {
     }
 
     func startCapture(mode: CaptureMode) {
-        if !hasScreenCaptureAccess() {
-            if !requestScreenCaptureAccess() {
-                screenCapturePermissionStatus = .denied
-                revealMainWindowForPermissionGuidance()
-            }
-            return
-        }
-        screenCapturePermissionStatus = .granted
-        currentCaptureMode = mode
-        isCapturing = true
-        captureCountdown = 0
-        wasMainWindowVisibleBeforeCapture = mainWindow?.isVisible ?? false
-        mainWindow?.orderOut(nil)
-        captureOverlayController.show(mode: mode, appState: self)
+        Task { @MainActor [weak self] in
+            guard let self else { return }
 
-        if mode == .screen {
-            startScreenCountdown()
+            let hasAccess = await currentScreenCaptureAccess()
+            if !hasAccess {
+                if !requestScreenCaptureAccess() {
+                    screenCapturePermissionStatus = .denied
+                    revealMainWindowForPermissionGuidance()
+                    return
+                }
+
+                let grantedAfterRequest = await currentScreenCaptureAccess()
+                screenCapturePermissionStatus = grantedAfterRequest ? .granted : .denied
+                guard grantedAfterRequest else {
+                    revealMainWindowForPermissionGuidance()
+                    return
+                }
+            } else {
+                screenCapturePermissionStatus = .granted
+            }
+
+            beginCapture(mode: mode)
         }
     }
 
@@ -417,12 +423,15 @@ class AppState: ObservableObject {
     }
 
     func refreshScreenCapturePermissionStatus() {
-        if hasScreenCaptureAccess() {
-            screenCapturePermissionStatus = .granted
-        } else if UserDefaults.standard.bool(forKey: screenCaptureAccessPromptedKey) {
-            screenCapturePermissionStatus = .denied
-        } else {
-            screenCapturePermissionStatus = .unknown
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            if await currentScreenCaptureAccess() {
+                screenCapturePermissionStatus = .granted
+            } else if UserDefaults.standard.bool(forKey: screenCaptureAccessPromptedKey) {
+                screenCapturePermissionStatus = .denied
+            } else {
+                screenCapturePermissionStatus = .unknown
+            }
         }
     }
 
@@ -433,8 +442,17 @@ class AppState: ObservableObject {
         _ = NSWorkspace.shared.open(settingsURL)
     }
 
-    private func hasScreenCaptureAccess() -> Bool {
-        CGPreflightScreenCaptureAccess()
+    private func currentScreenCaptureAccess() async -> Bool {
+        if CGPreflightScreenCaptureAccess() {
+            return true
+        }
+
+        do {
+            _ = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
+            return true
+        } catch {
+            return false
+        }
     }
 
     private func requestScreenCaptureAccess() -> Bool {
@@ -449,6 +467,19 @@ class AppState: ObservableObject {
             window.makeKeyAndOrderFront(nil)
         }
         NSApp.activate(ignoringOtherApps: true)
+    }
+
+    private func beginCapture(mode: CaptureMode) {
+        currentCaptureMode = mode
+        isCapturing = true
+        captureCountdown = 0
+        wasMainWindowVisibleBeforeCapture = mainWindow?.isVisible ?? false
+        mainWindow?.orderOut(nil)
+        captureOverlayController.show(mode: mode, appState: self)
+
+        if mode == .screen {
+            startScreenCountdown()
+        }
     }
 
     func addAnnotation(_ element: AnnotationElement) {
