@@ -101,9 +101,7 @@ struct PreferencesTabButton: View {
 }
 
 struct GeneralPreferencesView: View {
-    @AppStorage("copyAfterCapture") private var copyToClipboard = false
-    @AppStorage("showPreviewAfterCapture") private var showPreview = true
-    @AppStorage("timerDuration") private var timerDuration = 3
+    @EnvironmentObject var appState: AppState
 
     var body: some View {
         VStack(alignment: .leading, spacing: 24) {
@@ -127,7 +125,7 @@ struct GeneralPreferencesView: View {
 
             // Copy to clipboard
             VStack(alignment: .leading, spacing: 12) {
-                Toggle(isOn: $copyToClipboard) {
+                Toggle(isOn: Binding(get: { appState.copyAfterCapture }, set: { appState.copyAfterCapture = $0 })) {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Copy to clipboard after capture")
                             .font(.system(size: 13, weight: .medium, design: .rounded))
@@ -138,7 +136,7 @@ struct GeneralPreferencesView: View {
                 }
                 .toggleStyle(PreferencesToggleStyle())
 
-                Toggle(isOn: $showPreview) {
+                Toggle(isOn: Binding(get: { appState.showPreviewAfterCapture }, set: { appState.showPreviewAfterCapture = $0 })) {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Show preview after capture")
                             .font(.system(size: 13, weight: .medium, design: .rounded))
@@ -160,7 +158,7 @@ struct GeneralPreferencesView: View {
                 HStack(spacing: 12) {
                     ForEach([3, 5, 10], id: \.self) { seconds in
                         Button {
-                            timerDuration = seconds
+                            appState.timerDuration = seconds
                         } label: {
                             Text("\(seconds)s")
                                 .font(.system(size: 13, weight: .medium, design: .rounded))
@@ -168,14 +166,14 @@ struct GeneralPreferencesView: View {
                                 .padding(.vertical, 8)
                                 .background(
                                     Capsule().fill(
-                                        timerDuration == seconds
+                                        appState.timerDuration == seconds
                                             ? Color.accentColor.opacity(0.2)
                                             : Color.secondary.opacity(0.1)
                                     )
                                 )
                                 .overlay(
                                     Capsule().stroke(
-                                        timerDuration == seconds
+                                        appState.timerDuration == seconds
                                             ? Color.accentColor
                                             : Color.clear,
                                         lineWidth: 1
@@ -330,7 +328,6 @@ struct AppearancePreferencesView: View {
 
 struct StoragePreferencesView: View {
     @EnvironmentObject var appState: AppState
-    @AppStorage("historyLimit") private var historyLimit = 50
 
     var body: some View {
         VStack(alignment: .leading, spacing: 24) {
@@ -345,7 +342,10 @@ struct StoragePreferencesView: View {
                     Text("Keep last")
                         .font(.system(size: 13, design: .rounded))
 
-                    TextField("50", value: $historyLimit, format: .number)
+                    TextField("50", value: Binding(
+                        get: { appState.historyLimit },
+                        set: { appState.historyLimit = $0 }
+                    ), format: .number)
                         .textFieldStyle(.roundedBorder)
                         .frame(width: 60)
 

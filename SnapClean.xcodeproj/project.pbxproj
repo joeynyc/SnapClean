@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 63;
+	objectVersion = 77;
 	objects = {
 
 /* Begin PBXBuildFile section */
@@ -11,14 +11,17 @@
 		1C32004A450CCE42DE5AD246 /* HotkeyManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = FDAD5CCBC715225FBC77C69F /* HotkeyManager.swift */; };
 		2720026A3EEA64C1DF36DB48 /* PinWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F493BBD51ECAD89390B1AA0 /* PinWindow.swift */; };
 		36B32C6FF1C2CF47D83D2C16 /* ScreenCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B1DC995657B34A68DF98B81 /* ScreenCapture.swift */; };
+		3CAAFBF51B6F20508D15624E /* ServiceProtocols.swift in Sources */ = {isa = PBXBuildFile; fileRef = B485F2380FBA7A50DC0EEAEE /* ServiceProtocols.swift */; };
 		46D564ED22B47B6351F949B7 /* AnnotationCanvas.swift in Sources */ = {isa = PBXBuildFile; fileRef = C67C1A5D30C7CA6660767053 /* AnnotationCanvas.swift */; };
 		52CF38E7784287B81309AF27 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = CBA0741AA44B70A5CFCAF245 /* AppDelegate.swift */; };
 		68385B1F447DC6D404284CB9 /* CaptureOverlayWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B70572D94F5FA81C8B2B03F9 /* CaptureOverlayWindowController.swift */; };
 		8054B2249C94C40D6F848DFB /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 66D105A979FAE695B27471AF /* Assets.xcassets */; };
 		8C05D7EE210017399B877D69 /* SnapCleanApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 822CFEF9F44D7343D9CFBBEC /* SnapCleanApp.swift */; };
 		A2B23D89B1A3EF030C94DABF /* Screenshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65B71A1014464C8CD6A06516 /* Screenshot.swift */; };
+		B3299FBEC96D364F508A8D25 /* CaptureState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D2C188E8018CCD81BD7C065 /* CaptureState.swift */; };
 		BE2BE87B17318D648F30CA56 /* MainWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6AED29B025D3EE7B5532D97 /* MainWindow.swift */; };
 		C8B86253579D5B6D6603DC7F /* ToolbarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61361985584152143691777F /* ToolbarView.swift */; };
+		D6DA66B8D4E8C467DB4833D3 /* AnnotationState.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED103BA783D3C0A0C0003293 /* AnnotationState.swift */; };
 		E6E77254178CEB619957C998 /* CaptureOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD8FF97CD0D5FBBD85368F93 /* CaptureOverlay.swift */; };
 		F473CC85E14774300AD137B9 /* HistoryPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C674872497C779C2068C35C /* HistoryPanel.swift */; };
 		FA7744627DDEDEFABA7E2123 /* MenuBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE91F7D29108F1A99F0D61BB /* MenuBarView.swift */; };
@@ -29,6 +32,7 @@
 		11CEC64E05A9A064B0B9483D /* SnapClean.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SnapClean.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		1C674872497C779C2068C35C /* HistoryPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryPanel.swift; sourceTree = "<group>"; };
 		3406F360816D0C5D731D47B2 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		4D2C188E8018CCD81BD7C065 /* CaptureState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureState.swift; sourceTree = "<group>"; };
 		61361985584152143691777F /* ToolbarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolbarView.swift; sourceTree = "<group>"; };
 		65B71A1014464C8CD6A06516 /* Screenshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Screenshot.swift; sourceTree = "<group>"; };
 		66D105A979FAE695B27471AF /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -38,16 +42,26 @@
 		6F493BBD51ECAD89390B1AA0 /* PinWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PinWindow.swift; sourceTree = "<group>"; };
 		7CFEA7CD06D3AF6420DB8016 /* PreferencesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferencesView.swift; sourceTree = "<group>"; };
 		822CFEF9F44D7343D9CFBBEC /* SnapCleanApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnapCleanApp.swift; sourceTree = "<group>"; };
+		B485F2380FBA7A50DC0EEAEE /* ServiceProtocols.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServiceProtocols.swift; sourceTree = "<group>"; };
 		B70572D94F5FA81C8B2B03F9 /* CaptureOverlayWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureOverlayWindowController.swift; sourceTree = "<group>"; };
 		C67C1A5D30C7CA6660767053 /* AnnotationCanvas.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnotationCanvas.swift; sourceTree = "<group>"; };
 		CBA0741AA44B70A5CFCAF245 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		DD8FF97CD0D5FBBD85368F93 /* CaptureOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureOverlay.swift; sourceTree = "<group>"; };
+		ED103BA783D3C0A0C0003293 /* AnnotationState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnotationState.swift; sourceTree = "<group>"; };
 		EE91F7D29108F1A99F0D61BB /* MenuBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarView.swift; sourceTree = "<group>"; };
 		F6AED29B025D3EE7B5532D97 /* MainWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainWindow.swift; sourceTree = "<group>"; };
 		FDAD5CCBC715225FBC77C69F /* HotkeyManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotkeyManager.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
+		03C9AE33E55D1B8DD04FA2DE /* Protocols */ = {
+			isa = PBXGroup;
+			children = (
+				B485F2380FBA7A50DC0EEAEE /* ServiceProtocols.swift */,
+			);
+			path = Protocols;
+			sourceTree = "<group>";
+		};
 		06B35A0D95E5F59B6D1530AB /* Views */ = {
 			isa = PBXGroup;
 			children = (
@@ -72,6 +86,7 @@
 				6E469E7A678F255514B17469 /* SnapClean.entitlements */,
 				822CFEF9F44D7343D9CFBBEC /* SnapCleanApp.swift */,
 				9108A797AA4D65E4430CC9BF /* Models */,
+				03C9AE33E55D1B8DD04FA2DE /* Protocols */,
 				AC289A5B8AAA9D4853B86EB1 /* Resources */,
 				2B467675DA2E9DD5063CB3D2 /* Services */,
 				06B35A0D95E5F59B6D1530AB /* Views */,
@@ -100,6 +115,8 @@
 		9108A797AA4D65E4430CC9BF /* Models */ = {
 			isa = PBXGroup;
 			children = (
+				ED103BA783D3C0A0C0003293 /* AnnotationState.swift */,
+				4D2C188E8018CCD81BD7C065 /* CaptureState.swift */,
 				65B71A1014464C8CD6A06516 /* Screenshot.swift */,
 			);
 			path = Models;
@@ -157,7 +174,7 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
-				LastUpgradeCheck = 2620;
+				LastUpgradeCheck = 2600;
 				TargetAttributes = {
 					C6E45398B58E2782831ADB2D = {
 						DevelopmentTeam = "";
@@ -175,6 +192,7 @@
 			);
 			mainGroup = 6441FDB15465C59EB6AA31F8;
 			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
@@ -200,9 +218,11 @@
 			buildActionMask = 2147483647;
 			files = (
 				46D564ED22B47B6351F949B7 /* AnnotationCanvas.swift in Sources */,
+				D6DA66B8D4E8C467DB4833D3 /* AnnotationState.swift in Sources */,
 				52CF38E7784287B81309AF27 /* AppDelegate.swift in Sources */,
 				E6E77254178CEB619957C998 /* CaptureOverlay.swift in Sources */,
 				68385B1F447DC6D404284CB9 /* CaptureOverlayWindowController.swift in Sources */,
+				B3299FBEC96D364F508A8D25 /* CaptureState.swift in Sources */,
 				F473CC85E14774300AD137B9 /* HistoryPanel.swift in Sources */,
 				1C32004A450CCE42DE5AD246 /* HotkeyManager.swift in Sources */,
 				BE2BE87B17318D648F30CA56 /* MainWindow.swift in Sources */,
@@ -211,6 +231,7 @@
 				FF4782B66DD61FCF11C114B4 /* PreferencesView.swift in Sources */,
 				36B32C6FF1C2CF47D83D2C16 /* ScreenCapture.swift in Sources */,
 				A2B23D89B1A3EF030C94DABF /* Screenshot.swift in Sources */,
+				3CAAFBF51B6F20508D15624E /* ServiceProtocols.swift in Sources */,
 				8C05D7EE210017399B877D69 /* SnapCleanApp.swift in Sources */,
 				C8B86253579D5B6D6603DC7F /* ToolbarView.swift in Sources */,
 				0F1524768BF6CCC4E472C86F /* WindowAccessor.swift in Sources */,
@@ -258,13 +279,11 @@
 				COMBINE_HIDPI_IMAGES = YES;
 				COPY_PHASE_STRIP = NO;
 				CURRENT_PROJECT_VERSION = 1;
-				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = "";
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
@@ -279,7 +298,6 @@
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
 				SWIFT_VERSION = 5.9;
@@ -292,17 +310,9 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = SnapClean/SnapClean.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
-				DEAD_CODE_STRIPPING = YES;
-				ENABLE_APP_SANDBOX = YES;
-				ENABLE_FILE_ACCESS_DOWNLOADS_FOLDER = readwrite;
 				ENABLE_HARDENED_RUNTIME = YES;
-				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
-				ENABLE_USER_SELECTED_FILES = readonly;
 				INFOPLIST_FILE = SnapClean/Info.plist;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/../Frameworks",
-				);
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
 				NOTARIZATION_API_TYPE = use.xcode.com;
 				PRODUCT_BUNDLE_IDENTIFIER = com.snapclean.app;
 				PRODUCT_NAME = SnapClean;
@@ -349,13 +359,11 @@
 				COMBINE_HIDPI_IMAGES = YES;
 				COPY_PHASE_STRIP = NO;
 				CURRENT_PROJECT_VERSION = 1;
-				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				DEVELOPMENT_TEAM = "";
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_NO_COMMON_BLOCKS = YES;
@@ -377,7 +385,6 @@
 				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.9;
@@ -390,17 +397,9 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = SnapClean/SnapClean.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
-				DEAD_CODE_STRIPPING = YES;
-				ENABLE_APP_SANDBOX = YES;
-				ENABLE_FILE_ACCESS_DOWNLOADS_FOLDER = readwrite;
 				ENABLE_HARDENED_RUNTIME = YES;
-				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
-				ENABLE_USER_SELECTED_FILES = readonly;
 				INFOPLIST_FILE = SnapClean/Info.plist;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/../Frameworks",
-				);
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
 				NOTARIZATION_API_TYPE = use.xcode.com;
 				PRODUCT_BUNDLE_IDENTIFIER = com.snapclean.app;
 				PRODUCT_NAME = SnapClean;

@@ -2,8 +2,14 @@ import Foundation
 import Cocoa
 import CoreGraphics
 import ScreenCaptureKit
+import os
 
-class ScreenCaptureService {
+// Shared CIContext for all filter operations (avoids expensive GPU/Metal setup on each call)
+private let sharedCIContext = CIContext(options: [.useSoftwareRenderer: false])
+
+private let captureLogger = Logger(subsystem: "com.snapclean.app", category: "capture")
+
+class ScreenCaptureService: ScreenCapturing {
     private let dateFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd_HHmmss"
@@ -100,18 +106,23 @@ class ScreenCaptureService {
         let fileName = "SnapClean_\(dateFormatter.string(from: Date())).png"
         let fileURL = saveFolder.appendingPathComponent(fileName)
 
-        guard let tiffData = image.tiffRepresentation,
-              let bitmapImage = NSBitmapImageRep(data: tiffData),
-              let pngData = bitmapImage.representation(using: .png, properties: [:]) else {
+        guard let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
+            return nil
+        }
+
+        let rep = NSBitmapImageRep(cgImage: cgImage)
+        guard let pngData = rep.representation(using: .png, properties: [:]) else {
             return nil
         }
 
         do {
             try FileManager.default.createDirectory(at: saveFolder, withIntermediateDirectories: true)
             try pngData.write(to: fileURL)
+            // Set restrictive file permissions (owner-only read/write)
+            try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: fileURL.path)
             return fileURL.path
         } catch {
-            NSLog("SnapClean: Failed to save image: \(error.localizedDescription)")
+            captureLogger.error("Failed to save image: \(error.localizedDescription, privacy: .private)")
             return nil
         }
     }
@@ -138,12 +149,12 @@ extension NSImage {
     }
 
     func pixelate(amount: CGFloat, rect: CGRect) -> NSImage? {
-        guard let tiffData = self.tiffRepresentation,
-              let ciImage = CIImage(data: tiffData),
+        guard let cgImage = self.cgImage(forProposedRect: nil, context: nil, hints: nil),
               let filter = CIFilter(name: "CIPixellate") else {
             return nil
         }
 
+        let ciImage = CIImage(cgImage: cgImage)
         let scaleX = ciImage.extent.width / self.size.width
         let scaleY = ciImage.extent.height / self.size.height
 
@@ -162,19 +173,20 @@ extension NSImage {
         let croppedOutput = outputCIImage.cropped(to: ciRect)
         let composited = croppedOutput.composited(over: ciImage)
 
-        let context = CIContext(options: nil)
-        guard let cgImage = context.createCGImage(composited, from: ciImage.extent) else { return nil }
+        guard let resultCGImage = sharedCIContext.createCGImage(composited, from: ciImage.extent) else {
+            return nil
+        }
 
-        return NSImage(cgImage: cgImage, size: self.size)
+        return NSImage(cgImage: resultCGImage, size: self.size)
     }
 
     func blur(amount: CGFloat, rect: CGRect) -> NSImage? {
-        guard let tiffData = self.tiffRepresentation,
-              let ciImage = CIImage(data: tiffData),
+        guard let cgImage = self.cgImage(forProposedRect: nil, context: nil, hints: nil),
               let filter = CIFilter(name: "CIGaussianBlur") else {
             return nil
         }
 
+        let ciImage = CIImage(cgImage: cgImage)
         let scaleX = ciImage.extent.width / self.size.width
         let scaleY = ciImage.extent.height / self.size.height
 
@@ -193,18 +205,19 @@ extension NSImage {
         let croppedOutput = outputCIImage.cropped(to: ciRect)
         let composited = croppedOutput.composited(over: ciImage)
 
-        let context = CIContext(options: nil)
-        guard let cgImage = context.createCGImage(composited, from: ciImage.extent) else { return nil }
+        guard let resultCGImage = sharedCIContext.createCGImage(composited, from: ciImage.extent) else {
+            return nil
+        }
 
-        return NSImage(cgImage: cgImage, size: self.size)
+        return NSImage(cgImage: resultCGImage, size: self.size)
     }
 
     func jpegThumbnailData(maxSize: NSSize, compression: CGFloat = 0.72) -> Data? {
         guard let resized = resizedToFit(maxSize: maxSize),
-              let tiff = resized.tiffRepresentation,
-              let rep = NSBitmapImageRep(data: tiff) else {
+              let cgImage = resized.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
             return nil
         }
+        let rep = NSBitmapImageRep(cgImage: cgImage)
         return rep.representation(
             using: .jpeg,
             properties: [.compressionFactor: min(max(compression, 0.1), 1.0)]

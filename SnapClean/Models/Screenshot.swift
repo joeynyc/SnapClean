@@ -2,6 +2,10 @@ import SwiftUI
 import Combine
 import AppKit
 import ScreenCaptureKit
+import os
+
+private let appLogger = Logger(subsystem: "com.snapclean.app", category: "app")
+private let historyLogger = Logger(subsystem: "com.snapclean.app", category: "history")
 
 enum CaptureMode {
     case region
@@ -159,6 +163,9 @@ struct ScreenshotItem: Identifiable, Codable {
 
 @MainActor
 class AppState: ObservableObject {
+    // Maximum undo/redo stack depth to prevent unbounded memory growth
+    private let maxUndoRedoDepth = 30
+
     @Published var isCapturing = false
     @Published var currentCaptureMode: CaptureMode = .region
     @Published var capturedImage: NSImage?
@@ -181,8 +188,8 @@ class AppState: ObservableObject {
     @Published var captureCountdown: Int = 0
     @Published private(set) var screenCapturePermissionStatus: ScreenCapturePermissionStatus = .unknown
 
-    let screenCapture = ScreenCaptureService()
-    let historyManager = ScreenshotHistoryManager()
+    let screenCapture: ScreenCapturing
+    let historyManager: HistoryPersisting
     private let captureOverlayController = CaptureOverlayWindowController()
     private let screenCaptureAccessPromptedKey = "didPromptScreenCaptureAccess"
     private var captureTimer: Timer?
@@ -217,10 +224,17 @@ class AppState: ObservableObject {
             let val = UserDefaults.standard.integer(forKey: "historyLimit")
             return val > 0 ? val : 50
         }
-        set { UserDefaults.standard.set(newValue, forKey: "historyLimit") }
+        set {
+            // Clamp value to valid range (1-1000) to prevent invalid states
+            let clamped = min(max(newValue, 1), 1000)
+            UserDefaults.standard.set(clamped, forKey: "historyLimit")
+        }
     }
 
-    init() {
+    init(screenCapture: ScreenCapturing = ScreenCaptureService(),
+         historyManager: HistoryPersisting = ScreenshotHistoryManager()) {
+        self.screenCapture = screenCapture
+        self.historyManager = historyManager
         loadHistory()
         setupNotifications()
         refreshScreenCapturePermissionStatus()
@@ -317,7 +331,7 @@ class AppState: ObservableObject {
         let imageToSave = currentEditableImage()
         guard let imageToSave else { return }
         guard let savedPath = screenCapture.saveImage(imageToSave, to: historyManager.saveDirectory) else {
-            NSLog("SnapClean: Failed to save annotation")
+            appLogger.error("Failed to save annotation")
             return
         }
         addToHistory(path: savedPath, image: imageToSave)
@@ -484,6 +498,10 @@ class AppState: ObservableObject {
 
     func addAnnotation(_ element: AnnotationElement) {
         undoStack.append(annotations)
+        // Cap undo stack to prevent unbounded memory growth
+        if undoStack.count > maxUndoRedoDepth {
+            undoStack.removeFirst()
+        }
         redoStack.removeAll()
         annotations.append(element)
     }
@@ -491,17 +509,29 @@ class AppState: ObservableObject {
     func undo() {
         guard let lastState = undoStack.popLast() else { return }
         redoStack.append(annotations)
+        // Cap redo stack to prevent unbounded memory growth
+        if redoStack.count > maxUndoRedoDepth {
+            redoStack.removeFirst()
+        }
         annotations = lastState
     }
 
     func redo() {
         guard let nextState = redoStack.popLast() else { return }
         undoStack.append(annotations)
+        // Cap undo stack to prevent unbounded memory growth
+        if undoStack.count > maxUndoRedoDepth {
+            undoStack.removeFirst()
+        }
         annotations = nextState
     }
 
     func clearAnnotations() {
         undoStack.append(annotations)
+        // Cap undo stack to prevent unbounded memory growth
+        if undoStack.count > maxUndoRedoDepth {
+            undoStack.removeFirst()
+        }
         redoStack.removeAll()
         annotations = []
     }
@@ -553,7 +583,7 @@ class AppState: ObservableObject {
 
 }
 
-class ScreenshotHistoryManager {
+class ScreenshotHistoryManager: HistoryPersisting {
     static var defaultSaveDirectory: URL {
         let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
         return documentsPath.appendingPathComponent("SnapClean/History", isDirectory: true)
@@ -564,6 +594,11 @@ class ScreenshotHistoryManager {
     private let ioQueue = DispatchQueue(label: "com.snapclean.history-io", qos: .utility)
     let saveDirectory: URL
     private let historyFileURL: URL
+
+    /// Validates that a file path is within the allowed save directory
+    func isPathAllowed(_ path: String) -> Bool {
+        path.hasPrefix(saveDirectory.path)
+    }
 
     init(saveDirectory: URL = ScreenshotHistoryManager.defaultSaveDirectory) {
         self.saveDirectory = saveDirectory
@@ -577,8 +612,10 @@ class ScreenshotHistoryManager {
             do {
                 let data = try JSONEncoder().encode(history)
                 try data.write(to: historyFileURL, options: .atomic)
+                // Set restrictive file permissions (owner-only read/write)
+                try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: historyFileURL.path)
             } catch {
-                NSLog("SnapClean: Failed to save history: \(error.localizedDescription)")
+                historyLogger.error("Failed to save history: \(error.localizedDescription, privacy: .private)")
             }
         }
     }
@@ -595,8 +632,15 @@ class ScreenshotHistoryManager {
 
     func removeFiles(atPaths paths: [String]) {
         let uniquePaths = Array(Set(paths))
-        ioQueue.async {
+        ioQueue.async { [weak self] in
+            guard let self = self else { return }
+            let allowedPrefix = self.saveDirectory.path
             for path in uniquePaths where FileManager.default.fileExists(atPath: path) {
+                // Security: only allow deletion of files within the intended save directory
+                guard path.hasPrefix(allowedPrefix) else {
+                    historyLogger.warning("Attempted to delete file outside save directory")
+                    continue
+                }
                 try? FileManager.default.removeItem(atPath: path)
             }
         }
@@ -614,7 +658,7 @@ class ScreenshotHistoryManager {
             try encoded.write(to: historyFileURL, options: .atomic)
             UserDefaults.standard.removeObject(forKey: historyKey)
         } catch {
-            NSLog("SnapClean: Failed to migrate history store: \(error.localizedDescription)")
+            historyLogger.error("Failed to migrate history store: \(error.localizedDescription, privacy: .private)")
         }
     }
 }

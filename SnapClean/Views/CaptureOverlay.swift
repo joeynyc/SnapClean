@@ -9,6 +9,7 @@ struct CaptureOverlay: View {
     @State private var startPoint: CGPoint = .zero
     @State private var currentPoint: CGPoint = .zero
     @State private var selectedWindow: (id: CGWindowID, name: String, bounds: CGRect)?
+    @State private var windowList: [(id: CGWindowID, name: String, bounds: CGRect)] = []
 
     var body: some View {
         ZStack {
@@ -107,7 +108,7 @@ struct CaptureOverlay: View {
         GeometryReader { geometry in
             let globalFrame = geometry.frame(in: .global)
             ZStack {
-                ForEach(appState.screenCapture.getWindowList(), id: \.id) { window in
+                ForEach(windowList, id: \.id) { window in
                     let localBounds = window.bounds.offsetBy(
                         dx: -globalFrame.origin.x,
                         dy: -globalFrame.origin.y
@@ -122,6 +123,10 @@ struct CaptureOverlay: View {
                         performWindowCapture(window: window)
                     }
                 }
+            }
+            .onAppear {
+                // Fetch window list once when overlay appears (avoid expensive system calls on every render)
+                windowList = appState.screenCapture.getWindowList()
             }
         }
     }

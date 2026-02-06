@@ -1,8 +1,11 @@
 import Foundation
 import AppKit
 import Carbon
+import os
 
-class HotkeyManager {
+private let hotkeyLogger = Logger(subsystem: "com.snapclean.app", category: "hotkeys")
+
+class HotkeyManager: HotkeyRegistering {
     static let shared = HotkeyManager()
 
     private struct HotkeySignature: Hashable {
@@ -16,12 +19,17 @@ class HotkeyManager {
     private var hotkeyActions: [UInt32: () -> Void] = [:]
     private var hotkeyRefs: [UInt32: EventHotKeyRef] = [:]
     private var signatureToHotkeyID: [HotkeySignature: UInt32] = [:]
+    // Lock for thread-safe dictionary access from Carbon event handler callback
+    private let hotkeyAccessLock = NSLock()
 
     private init() {}
 
     func register(keyCode: UInt16, modifiers: NSEvent.ModifierFlags, action: @escaping () -> Void) {
         let carbonModifiers = toCarbonModifiers(modifiers)
         let signature = HotkeySignature(keyCode: keyCode, modifiers: carbonModifiers)
+
+        hotkeyAccessLock.lock()
+        defer { hotkeyAccessLock.unlock() }
 
         if let existingID = signatureToHotkeyID[signature] {
             unregister(hotkeyID: existingID)
@@ -44,7 +52,7 @@ class HotkeyManager {
         )
 
         guard status == noErr, let hotkeyRef else {
-            NSLog("SnapClean: Failed to register hotkey keyCode=\(keyCode) modifiers=\(carbonModifiers) status=\(status)")
+            hotkeyLogger.error("Failed to register hotkey keyCode=\(keyCode) modifiers=\(carbonModifiers) status=\(status)")
             return
         }
 
@@ -61,7 +69,11 @@ class HotkeyManager {
     }
 
     func unregisterAll() {
-        for hotkeyID in hotkeyActions.keys {
+        hotkeyAccessLock.lock()
+        let idsToUnregister = Array(hotkeyActions.keys)
+        hotkeyAccessLock.unlock()
+
+        for hotkeyID in idsToUnregister {
             unregister(hotkeyID: hotkeyID)
         }
         if let eventHandlerRef {
@@ -106,7 +118,12 @@ class HotkeyManager {
         )
         guard status == noErr else { return status }
 
+        hotkeyAccessLock.lock()
+        defer { hotkeyAccessLock.unlock() }
+
         if let action = hotkeyActions[hotkeyID.id] {
+            hotkeyAccessLock.unlock()
+            // Execute action outside the lock to avoid potential deadlock
             action()
             return noErr
         }
@@ -114,6 +131,9 @@ class HotkeyManager {
     }
 
     private func unregister(hotkeyID: UInt32) {
+        hotkeyAccessLock.lock()
+        defer { hotkeyAccessLock.unlock() }
+
         guard let hotkeyRef = hotkeyRefs[hotkeyID] else { return }
         UnregisterEventHotKey(hotkeyRef)
         hotkeyRefs.removeValue(forKey: hotkeyID)
