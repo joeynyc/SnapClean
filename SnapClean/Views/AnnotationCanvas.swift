@@ -87,13 +87,22 @@ struct AnnotationCanvasView: View {
             .overlay(alignment: .bottom) {
                 BottomToolbarView()
             }
-        }
-        .onTapGesture { location in
-            if appState.selectedTool == .text && !isDrawing {
-                currentEndPoint = location
-                isEnteringText = true
+            .onAppear {
+                appState.annotationCanvasSize = geometrySizeClamped(to: geometry.size)
+            }
+            .onChange(of: geometry.size) { newSize in
+                appState.annotationCanvasSize = geometrySizeClamped(to: newSize)
             }
         }
+        .simultaneousGesture(
+            SpatialTapGesture()
+                .onEnded { value in
+                    if appState.selectedTool == .text && !isDrawing {
+                        currentEndPoint = value.location
+                        isEnteringText = true
+                    }
+                }
+        )
         .gesture(
             DragGesture(minimumDistance: 0)
                 .onChanged { value in
@@ -192,7 +201,7 @@ struct AnnotationCanvasView: View {
                     return nil
                 }
                 if flags == .command && event.charactersIgnoringModifiers == "c" {
-                    if let img = appState.capturedImage {
+                    if let img = appState.currentEditableImage() {
                         appState.screenCapture.copyToClipboard(img)
                     }
                     return nil
@@ -206,6 +215,10 @@ struct AnnotationCanvasView: View {
                 keyMonitor = nil
             }
         }
+    }
+
+    private func geometrySizeClamped(to size: CGSize) -> CGSize {
+        CGSize(width: max(size.width, 1), height: max(size.height, 1))
     }
 }
 
@@ -238,7 +251,7 @@ struct AnnotationRenderer: View {
     var body: some View {
         if let el = element {
             Canvas { context, size in
-                let color = Color(el.color)
+                let color = el.color
 
                 switch el.tool {
                 case .arrow:
@@ -356,7 +369,7 @@ struct BottomToolbarView: View {
                     .frame(height: 20)
 
                 ActionButton(icon: "doc.on.doc", label: "Copy") {
-                    guard let image = appState.capturedImage else { return }
+                    guard let image = appState.currentEditableImage() else { return }
                     appState.screenCapture.copyToClipboard(image)
                 }
 
@@ -365,7 +378,7 @@ struct BottomToolbarView: View {
                 }
 
                 ActionButton(icon: "pin", label: "Pin") {
-                    if let image = appState.capturedImage {
+                    if let image = appState.currentEditableImage() {
                         appState.pinToScreen(image)
                     }
                 }
@@ -394,6 +407,24 @@ struct BottomToolbarView: View {
             Rectangle()
                 .fill(.ultraThinMaterial)
         )
+    }
+}
+
+struct AnnotationExportView: View {
+    let image: NSImage
+    let annotations: [AnnotationElement]
+
+    var body: some View {
+        ZStack {
+            Color.clear
+            Image(nsImage: image)
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+
+            ForEach(annotations) { element in
+                AnnotationRenderer(element: element)
+            }
+        }
     }
 }
 

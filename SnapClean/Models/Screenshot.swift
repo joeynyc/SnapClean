@@ -20,6 +20,11 @@ enum AnnotationTool: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
+    // Tools currently implemented in the canvas interaction/rendering pipeline.
+    static var selectableTools: [AnnotationTool] {
+        [.arrow, .text, .rectangle, .oval, .line, .pencil]
+    }
+
     var icon: String {
         switch self {
         case .arrow: return "arrow.right"
@@ -105,6 +110,7 @@ class AppState: ObservableObject {
     @Published var annotations: [AnnotationElement] = []
     @Published var undoStack: [[AnnotationElement]] = []
     @Published var redoStack: [[AnnotationElement]] = []
+    @Published var annotationCanvasSize: CGSize = .zero
 
     @Published var isTransparentBackground = false
     @Published var captureCountdown: Int = 0
@@ -221,12 +227,13 @@ class AppState: ObservableObject {
     }
 
     func saveAnnotation() {
-        guard let image = capturedImage else { return }
-        guard let savedPath = screenCapture.saveImage(image) else {
+        let imageToSave = currentEditableImage()
+        guard let imageToSave else { return }
+        guard let savedPath = screenCapture.saveImage(imageToSave) else {
             NSLog("SnapClean: Failed to save annotation")
             return
         }
-        addToHistory(path: savedPath, image: image)
+        addToHistory(path: savedPath, image: imageToSave)
         resetAnnotationState()
         showAnnotationCanvas = false
     }
@@ -323,6 +330,79 @@ class AppState: ObservableObject {
     func pinToScreen(_ image: NSImage) {
         pinnedImage = image
         showPinWindow = true
+    }
+
+    func currentEditableImage() -> NSImage? {
+        renderAnnotatedImage() ?? capturedImage
+    }
+
+    @MainActor
+    private func renderAnnotatedImage() -> NSImage? {
+        guard let image = capturedImage, annotationCanvasSize != .zero else { return nil }
+        guard #available(macOS 13.0, *) else { return nil }
+
+        let exportSize = image.size
+        guard exportSize.width > 0, exportSize.height > 0 else { return nil }
+
+        let scaleX = exportSize.width / annotationCanvasSize.width
+        let scaleY = exportSize.height / annotationCanvasSize.height
+        let annotationScale = min(scaleX, scaleY)
+        let scaledAnnotations = annotations.map { element in
+            scaleAnnotation(
+                element,
+                scaleX: scaleX,
+                scaleY: scaleY,
+                annotationScale: annotationScale
+            )
+        }
+
+        let content = AnnotationExportView(image: image, annotations: scaledAnnotations)
+            .frame(width: exportSize.width, height: exportSize.height)
+
+        let renderer = ImageRenderer(content: content)
+        renderer.scale = imageBackingScale(for: image)
+        return renderer.nsImage
+    }
+
+    private func imageBackingScale(for image: NSImage) -> CGFloat {
+        guard image.size.width > 0 else { return NSScreen.main?.backingScaleFactor ?? 2.0 }
+        if let bitmap = image.representations.compactMap({ $0 as? NSBitmapImageRep }).first {
+            let scale = CGFloat(bitmap.pixelsWide) / image.size.width
+            if scale.isFinite, scale > 0 {
+                return scale
+            }
+        }
+        return NSScreen.main?.backingScaleFactor ?? 2.0
+    }
+
+    private func scaleAnnotation(
+        _ element: AnnotationElement,
+        scaleX: CGFloat,
+        scaleY: CGFloat,
+        annotationScale: CGFloat
+    ) -> AnnotationElement {
+        let scaledPoints = element.points.map { point in
+            CGPoint(x: point.x * scaleX, y: point.y * scaleY)
+        }
+        let scaledStart = element.startPoint.map { point in
+            CGPoint(x: point.x * scaleX, y: point.y * scaleY)
+        }
+        let scaledEnd = element.endPoint.map { point in
+            CGPoint(x: point.x * scaleX, y: point.y * scaleY)
+        }
+        let scaledFont = element.fontSize.map { $0 * annotationScale }
+
+        return AnnotationElement(
+            id: element.id,
+            tool: element.tool,
+            points: scaledPoints,
+            color: element.color,
+            lineWidth: element.lineWidth * annotationScale,
+            startPoint: scaledStart,
+            endPoint: scaledEnd,
+            text: element.text,
+            fontSize: scaledFont
+        )
     }
 }
 

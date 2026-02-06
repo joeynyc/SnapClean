@@ -23,6 +23,10 @@ struct MainWindow: View {
                 appState.mainWindow = window
             }
         )
+        .sheet(isPresented: $appState.showPinWindow) {
+            PinWindow()
+                .environmentObject(appState)
+        }
     }
 }
 

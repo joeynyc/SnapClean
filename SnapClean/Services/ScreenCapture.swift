@@ -1,6 +1,7 @@
 import Foundation
 import Cocoa
 import CoreGraphics
+import ScreenCaptureKit
 
 class ScreenCaptureService {
     private let dateFormatter: DateFormatter = {

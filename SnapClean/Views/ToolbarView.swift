@@ -50,7 +50,7 @@ struct ToolPicker: View {
 
     var body: some View {
         Menu {
-            ForEach(AnnotationTool.allCases) { tool in
+            ForEach(AnnotationTool.selectableTools) { tool in
                 Button {
                     appState.selectedTool = tool
                 } label: {
