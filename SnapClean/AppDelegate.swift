@@ -3,6 +3,7 @@ import Carbon
 
 class AppDelegate: NSObject, NSApplicationDelegate {
     private var aboutWindow: NSWindow?
+    weak var appState: AppState?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         setupHotkeys()
@@ -13,40 +14,34 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         HotkeyManager.shared.unregisterAll()
     }
 
-    private func captureRegion() {
-        NotificationCenter.default.post(name: .startCapture, object: nil, userInfo: ["mode": CaptureMode.region])
-    }
-
-    private func captureWindow() {
-        NotificationCenter.default.post(name: .startCapture, object: nil, userInfo: ["mode": CaptureMode.window])
-    }
-
-    private func captureScreen() {
-        NotificationCenter.default.post(name: .startCapture, object: nil, userInfo: ["mode": CaptureMode.screen])
-    }
-
     private func setupHotkeys() {
         HotkeyManager.shared.register(
             keyCode: UInt16(kVK_F1),
-            modifiers: [],
+            modifiers: [.command, .shift],
             action: { [weak self] in
-                self?.captureRegion()
+                Task { @MainActor in
+                    self?.appState?.startCapture(mode: .region)
+                }
             }
         )
 
         HotkeyManager.shared.register(
             keyCode: UInt16(kVK_F2),
-            modifiers: [],
+            modifiers: [.command, .shift],
             action: { [weak self] in
-                self?.captureWindow()
+                Task { @MainActor in
+                    self?.appState?.startCapture(mode: .window)
+                }
             }
         )
 
         HotkeyManager.shared.register(
             keyCode: UInt16(kVK_F3),
-            modifiers: [],
+            modifiers: [.command, .shift],
             action: { [weak self] in
-                self?.captureScreen()
+                Task { @MainActor in
+                    self?.appState?.startCapture(mode: .screen)
+                }
             }
         )
     }
@@ -54,9 +49,4 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private func checkScreenRecordingPermission() {
         _ = CGPreflightScreenCaptureAccess()
     }
-}
-
-extension Notification.Name {
-    static let startCapture = Notification.Name("startCapture")
-    static let openHistory = Notification.Name("openHistory")
 }

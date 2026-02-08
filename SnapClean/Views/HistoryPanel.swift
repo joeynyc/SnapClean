@@ -75,9 +75,13 @@ struct HistoryItemView: View {
         VStack(spacing: 8) {
             // Thumbnail
             Button {
-                if let image = NSImage(contentsOfFile: item.filePath) {
-                    appState.pinnedImage = image
-                    appState.showPinWindow = true
+                Task {
+                    let path = item.filePath
+                    let loaded = await Task.detached(priority: .userInitiated) { NSImage(contentsOfFile: path) }.value
+                    if let image = loaded {
+                        appState.pinnedImage = image
+                        appState.showPinWindow = true
+                    }
                 }
             } label: {
                 if let thumbnailData = item.thumbnail,
@@ -114,8 +118,12 @@ struct HistoryItemView: View {
             // Actions
             HStack(spacing: 8) {
                 ActionIconButton(icon: "doc.on.doc", tooltip: "Copy") {
-                    if let image = NSImage(contentsOfFile: item.filePath) {
-                        appState.screenCapture.copyToClipboard(image)
+                    Task {
+                        let path = item.filePath
+                        let loaded = await Task.detached(priority: .userInitiated) { NSImage(contentsOfFile: path) }.value
+                        if let image = loaded {
+                            appState.screenCapture.copyToClipboard(image)
+                        }
                     }
                 }
 

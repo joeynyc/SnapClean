@@ -198,9 +198,9 @@ struct ShortcutsPreferencesView: View {
                 .font(.system(size: 18, weight: .bold, design: .rounded))
 
             VStack(spacing: 8) {
-                ShortcutRow(name: "Capture Region", shortcut: "F1")
-                ShortcutRow(name: "Capture Window", shortcut: "F2")
-                ShortcutRow(name: "Capture Screen", shortcut: "F3")
+                ShortcutRow(name: "Capture Region", shortcut: "⌘⇧F1")
+                ShortcutRow(name: "Capture Window", shortcut: "⌘⇧F2")
+                ShortcutRow(name: "Capture Screen", shortcut: "⌘⇧F3")
                 ShortcutRow(name: "Undo", shortcut: "⌘Z")
                 ShortcutRow(name: "Redo", shortcut: "⌘⇧Z")
                 ShortcutRow(name: "Save", shortcut: "⌘S")

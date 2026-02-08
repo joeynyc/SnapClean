@@ -67,7 +67,7 @@ struct WelcomeView: View {
                     title: "Capture Region",
                     subtitle: "Draw a rectangle to capture",
                     icon: "square.dashed",
-                    keyboard: "F1"
+                    keyboard: "⌘⇧F1"
                 ) {
                     appState.startCapture(mode: .region)
                 }
@@ -76,7 +76,7 @@ struct WelcomeView: View {
                     title: "Capture Window",
                     subtitle: "Click to capture a window",
                     icon: "app.windows",
-                    keyboard: "F2"
+                    keyboard: "⌘⇧F2"
                 ) {
                     appState.startCapture(mode: .window)
                 }
@@ -85,7 +85,7 @@ struct WelcomeView: View {
                     title: "Capture Screen",
                     subtitle: "Capture the entire screen",
                     icon: "desktopcomputer",
-                    keyboard: "F3"
+                    keyboard: "⌘⇧F3"
                 ) {
                     appState.startCapture(mode: .screen)
                 }
@@ -238,9 +238,13 @@ struct HistoryThumbnailView: View {
 
     var body: some View {
         Button {
-            if let image = NSImage(contentsOfFile: item.filePath) {
-                appState.pinnedImage = image
-                appState.showPinWindow = true
+            Task {
+                let path = item.filePath
+                let loaded = await Task.detached(priority: .userInitiated) { NSImage(contentsOfFile: path) }.value
+                if let image = loaded {
+                    appState.pinnedImage = image
+                    appState.showPinWindow = true
+                }
             }
         } label: {
             VStack(spacing: 4) {

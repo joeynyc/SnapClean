@@ -1,7 +1,6 @@
 import Foundation
 import Cocoa
 import CoreGraphics
-import ScreenCaptureKit
 import os
 
 // Shared CIContext for all filter operations (avoids expensive GPU/Metal setup on each call)
@@ -140,12 +139,11 @@ class ScreenCaptureService: ScreenCapturing {
 
 extension NSImage {
     func resize(to newSize: NSSize) -> NSImage? {
-        let newImage = NSImage(size: newSize)
-        newImage.lockFocus()
-        NSColor.clear.set()
-        draw(in: NSRect(origin: .zero, size: newSize), from: NSRect(origin: .zero, size: size), operation: .copy, fraction: 1.0)
-        newImage.unlockFocus()
-        return newImage
+        guard newSize.width > 0, newSize.height > 0 else { return nil }
+        return NSImage(size: newSize, flipped: false) { rect in
+            self.draw(in: rect, from: NSRect(origin: .zero, size: self.size), operation: .copy, fraction: 1.0)
+            return true
+        }
     }
 
     func pixelate(amount: CGFloat, rect: CGRect) -> NSImage? {
@@ -229,31 +227,5 @@ extension NSImage {
         let scale = min(maxSize.width / size.width, maxSize.height / size.height)
         let target = NSSize(width: size.width * scale, height: size.height * scale)
         return resize(to: target)
-    }
-}
-import AVFoundation
-
-@available(macOS 14.0, *)
-private final class StreamSingleFrameGrabber: NSObject, SCStreamOutput {
-    private var firstSample: CMSampleBuffer?
-    private let semaphore = DispatchSemaphore(value: 0)
-
-    func stream(_ stream: SCStream, didOutputSampleBuffer sampleBuffer: CMSampleBuffer, of outputType: SCStreamOutputType) {
-        if firstSample == nil, CMSampleBufferIsValid(sampleBuffer) {
-            firstSample = sampleBuffer
-            semaphore.signal()
-        }
-    }
-
-    func waitForFirstFrame(timeout: TimeInterval) -> CMSampleBuffer? {
-        _ = semaphore.wait(timeout: .now() + timeout)
-        return firstSample
-    }
-}
-
-private extension NSScreen {
-    var displayID: CGDirectDisplayID? {
-        guard let screenNumber = deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber else { return nil }
-        return CGDirectDisplayID(screenNumber.uint32Value)
     }
 }

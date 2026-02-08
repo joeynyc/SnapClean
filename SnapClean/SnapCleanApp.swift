@@ -10,6 +10,9 @@ struct SnapCleanApp: App {
             MainWindow()
                 .environmentObject(appState)
                 .frame(minWidth: 800, minHeight: 600)
+                .onAppear {
+                    appDelegate.appState = appState
+                }
         }
         .windowStyle(.hiddenTitleBar)
         .commands {

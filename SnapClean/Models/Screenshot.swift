@@ -13,6 +13,23 @@ enum CaptureMode {
     case screen
 }
 
+enum CaptureError: LocalizedError {
+    case permissionDenied
+    case captureFailed(CaptureMode)
+    case saveFailed(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .permissionDenied:
+            return "Screen recording permission is required to capture screenshots."
+        case .captureFailed(let mode):
+            return "Failed to capture \(mode). The screen content may be protected."
+        case .saveFailed(let path):
+            return "Failed to save screenshot to \(path)."
+        }
+    }
+}
+
 enum ScreenCapturePermissionStatus {
     case unknown
     case granted
@@ -187,6 +204,7 @@ class AppState: ObservableObject {
     @Published var isTransparentBackground = false
     @Published var captureCountdown: Int = 0
     @Published private(set) var screenCapturePermissionStatus: ScreenCapturePermissionStatus = .unknown
+    @Published var lastCaptureError: CaptureError?
 
     let screenCapture: ScreenCapturing
     let historyManager: HistoryPersisting
@@ -242,27 +260,6 @@ class AppState: ObservableObject {
 
     private func setupNotifications() {
         NotificationCenter.default.addObserver(
-            forName: .startCapture,
-            object: nil,
-            queue: .main
-        ) { [weak self] notification in
-            guard let mode = notification.userInfo?["mode"] as? CaptureMode else { return }
-            Task { @MainActor in
-                self?.startCapture(mode: mode)
-            }
-        }
-
-        NotificationCenter.default.addObserver(
-            forName: .openHistory,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            Task { @MainActor in
-                self?.showHistory = true
-            }
-        }
-
-        NotificationCenter.default.addObserver(
             forName: NSApplication.didBecomeActiveNotification,
             object: nil,
             queue: .main
@@ -281,6 +278,8 @@ class AppState: ObservableObject {
             if !hasAccess {
                 if !requestScreenCaptureAccess() {
                     screenCapturePermissionStatus = .denied
+                    lastCaptureError = .permissionDenied
+                    appLogger.warning("Screen capture permission denied")
                     revealMainWindowForPermissionGuidance()
                     return
                 }
@@ -313,6 +312,9 @@ class AppState: ObservableObject {
         } else {
             if let path = screenCapture.saveImage(image, to: historyManager.saveDirectory) {
                 addToHistory(path: path, image: image)
+            } else {
+                lastCaptureError = .saveFailed(historyManager.saveDirectory.path)
+                appLogger.error("Failed to save captured image to \(self.historyManager.saveDirectory.path, privacy: .public)")
             }
         }
     }
