@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct HistoryPanel: View {
-    @EnvironmentObject var appState: AppState
+    @Environment(AppState.self) var appState
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -13,16 +13,16 @@ struct HistoryPanel: View {
 
                 Spacer()
 
-                Text("\(appState.screenshotHistory.count) screenshots")
+                Text("\(appState.history.screenshotHistory.count) screenshots")
                     .font(.system(size: 12, weight: .medium, design: .rounded))
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
 
                 Button {
                     dismiss()
                 } label: {
                     Image(systemName: "xmark.circle.fill")
                         .font(.system(size: 18))
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                 }
                 .buttonStyle(.plain)
             }
@@ -33,19 +33,19 @@ struct HistoryPanel: View {
             Divider()
 
             // Content
-            if appState.screenshotHistory.isEmpty {
+            if appState.history.screenshotHistory.isEmpty {
                 VStack(spacing: 16) {
                     Image(systemName: "photo.on.rectangle")
                         .font(.system(size: 48))
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
 
                     Text("No screenshots yet")
                         .font(.system(size: 16, weight: .medium, design: .rounded))
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
 
                     Text("Capture your first screenshot to see it here")
                         .font(.system(size: 13, weight: .regular, design: .rounded))
-                        .foregroundColor(.secondary.opacity(0.8))
+                        .foregroundStyle(.secondary.opacity(0.8))
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
@@ -55,7 +55,7 @@ struct HistoryPanel: View {
                         GridItem(.flexible()),
                         GridItem(.flexible())
                     ], spacing: 16) {
-                        ForEach(appState.screenshotHistory) { item in
+                        ForEach(appState.history.screenshotHistory) { item in
                             HistoryItemView(item: item)
                         }
                     }
@@ -69,7 +69,7 @@ struct HistoryPanel: View {
 
 struct HistoryItemView: View {
     let item: ScreenshotItem
-    @EnvironmentObject var appState: AppState
+    @Environment(AppState.self) var appState
 
     var body: some View {
         VStack(spacing: 8) {
@@ -98,7 +98,7 @@ struct HistoryItemView: View {
                         .overlay(
                             Image(systemName: "photo")
                                 .font(.system(size: 24))
-                                .foregroundColor(.secondary)
+                                .foregroundStyle(.secondary)
                         )
                 }
             }
@@ -108,11 +108,11 @@ struct HistoryItemView: View {
             VStack(spacing: 2) {
                 Text(item.date, style: .date)
                     .font(.system(size: 11, weight: .medium, design: .rounded))
-                    .foregroundColor(.primary)
+                    .foregroundStyle(.primary)
 
                 Text(item.date, style: .time)
                     .font(.system(size: 10, weight: .regular, design: .rounded))
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
             }
 
             // Actions
@@ -122,7 +122,7 @@ struct HistoryItemView: View {
                         let path = item.filePath
                         let loaded = await Task.detached(priority: .userInitiated) { NSImage(contentsOfFile: path) }.value
                         if let image = loaded {
-                            appState.screenCapture.copyToClipboard(image)
+                            appState.capture.screenCapture.copyToClipboard(image)
                         }
                     }
                 }
@@ -133,11 +133,11 @@ struct HistoryItemView: View {
                 }
 
                 ActionIconButton(icon: "folder", tooltip: "Show in Finder") {
-                    appState.screenCapture.openInFinder(item.filePath)
+                    appState.capture.screenCapture.openInFinder(item.filePath)
                 }
 
                 ActionIconButton(icon: "trash", tooltip: "Delete") {
-                    appState.deleteHistoryItem(item)
+                    appState.history.deleteHistoryItem(item)
                 }
             }
         }
@@ -164,7 +164,7 @@ struct ActionIconButton: View {
         Button(action: action) {
             Image(systemName: icon)
                 .font(.system(size: 12, weight: .medium))
-                .foregroundColor(isHovered ? .accentColor : .secondary)
+                .foregroundStyle(isHovered ? Color.accentColor : .secondary)
                 .frame(width: 28, height: 28)
                 .background(
                     Circle()
@@ -183,5 +183,5 @@ struct ActionIconButton: View {
 
 #Preview {
     HistoryPanel()
-        .environmentObject(AppState())
+        .environment(AppState())
 }

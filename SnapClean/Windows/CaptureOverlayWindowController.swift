@@ -29,7 +29,7 @@ final class CaptureOverlayWindowController {
             window.sharingType = .none
 
             let rootView = CaptureOverlay(mode: mode)
-                .environmentObject(appState)
+                .environment(appState)
             window.contentView = NSHostingView(rootView: rootView)
 
             window.makeKeyAndOrderFront(nil)

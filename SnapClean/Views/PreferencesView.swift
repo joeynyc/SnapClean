@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct PreferencesView: View {
-    @EnvironmentObject var appState: AppState
+    @Environment(AppState.self) var appState
     @State private var selectedTab = 0
 
     var body: some View {
@@ -70,12 +70,12 @@ struct PreferencesTabButton: View {
             HStack(spacing: 10) {
                 Image(systemName: icon)
                     .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(isSelected ? .accentColor : .secondary)
+                    .foregroundStyle(isSelected ? Color.accentColor : .secondary)
                     .frame(width: 20)
 
                 Text(title)
                     .font(.system(size: 13, weight: .medium, design: .rounded))
-                    .foregroundColor(isSelected ? .primary : .secondary)
+                    .foregroundStyle(isSelected ? .primary : .secondary)
 
                 Spacer()
             }
@@ -91,9 +91,10 @@ struct PreferencesTabButton: View {
 }
 
 struct GeneralPreferencesView: View {
-    @EnvironmentObject var appState: AppState
+    @Environment(AppState.self) var appState
 
     var body: some View {
+        @Bindable var appState = appState
         VStack(alignment: .leading, spacing: 24) {
             // Save location
             VStack(alignment: .leading, spacing: 8) {
@@ -115,24 +116,24 @@ struct GeneralPreferencesView: View {
 
             // Copy to clipboard
             VStack(alignment: .leading, spacing: 12) {
-                Toggle(isOn: Binding(get: { appState.copyAfterCapture }, set: { appState.copyAfterCapture = $0 })) {
+                Toggle(isOn: $appState.copyAfterCapture) {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Copy to clipboard after capture")
                             .font(.system(size: 13, weight: .medium, design: .rounded))
                         Text("Automatically copy screenshots to clipboard")
                             .font(.system(size: 11, design: .rounded))
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(.secondary)
                     }
                 }
                 .toggleStyle(PreferencesToggleStyle())
 
-                Toggle(isOn: Binding(get: { appState.showPreviewAfterCapture }, set: { appState.showPreviewAfterCapture = $0 })) {
+                Toggle(isOn: $appState.showPreviewAfterCapture) {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Show preview after capture")
                             .font(.system(size: 13, weight: .medium, design: .rounded))
                         Text("Display annotation editor after taking screenshot")
                             .font(.system(size: 11, design: .rounded))
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(.secondary)
                     }
                 }
                 .toggleStyle(PreferencesToggleStyle())
@@ -204,7 +205,7 @@ struct ShortcutsPreferencesView: View {
 
             Text("Note: Some shortcuts may conflict with system or other apps.")
                 .font(.system(size: 11, design: .rounded))
-                .foregroundColor(.secondary)
+                .foregroundStyle(.secondary)
 
             Spacer()
         }
@@ -231,9 +232,10 @@ struct ShortcutRow: View {
 }
 
 struct StoragePreferencesView: View {
-    @EnvironmentObject var appState: AppState
+    @Environment(AppState.self) var appState
 
     var body: some View {
+        @Bindable var appState = appState
         VStack(alignment: .leading, spacing: 24) {
             Text("Storage")
                 .font(.system(size: 18, weight: .bold, design: .rounded))
@@ -246,10 +248,7 @@ struct StoragePreferencesView: View {
                     Text("Keep last")
                         .font(.system(size: 13, design: .rounded))
 
-                    TextField("50", value: Binding(
-                        get: { appState.historyLimit },
-                        set: { appState.historyLimit = $0 }
-                    ), format: .number)
+                    TextField("50", value: $appState.historyLimit, format: .number)
                         .textFieldStyle(.roundedBorder)
                         .frame(width: 60)
 
@@ -263,14 +262,14 @@ struct StoragePreferencesView: View {
             VStack(alignment: .leading, spacing: 12) {
                 HStack {
                     Button("Clear History", role: .destructive) {
-                        appState.clearHistory()
+                        appState.history.clearHistory()
                     }
                     .buttonStyle(.bordered)
 
                     Spacer()
 
                     Button("Open History Folder") {
-                        NSWorkspace.shared.open(appState.historyManager.saveDirectory)
+                        NSWorkspace.shared.open(appState.history.historyManager.saveDirectory)
                     }
                     .buttonStyle(.bordered)
                 }
@@ -296,5 +295,5 @@ struct PreferencesToggleStyle: ToggleStyle {
 
 #Preview {
     PreferencesView()
-        .environmentObject(AppState())
+        .environment(AppState())
 }

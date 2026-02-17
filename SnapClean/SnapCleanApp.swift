@@ -2,13 +2,13 @@ import SwiftUI
 
 @main
 struct SnapCleanApp: App {
-    @StateObject private var appState = AppState()
+    @State private var appState = AppState()
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
 
     var body: some Scene {
         WindowGroup {
             MainWindow()
-                .environmentObject(appState)
+                .environment(appState)
                 .frame(minWidth: 800, minHeight: 600)
                 .onAppear {
                     appDelegate.appState = appState
@@ -31,13 +31,13 @@ struct SnapCleanApp: App {
 
         MenuBarExtra("SnapClean", systemImage: "camera.fill") {
             MenuBarView()
-                .environmentObject(appState)
+                .environment(appState)
         }
         .menuBarExtraStyle(.window)
 
         Settings {
             PreferencesView()
-                .environmentObject(appState)
+                .environment(appState)
                 .frame(width: 600, height: 400)
         }
     }

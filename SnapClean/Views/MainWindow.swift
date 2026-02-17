@@ -2,11 +2,12 @@ import SwiftUI
 import AppKit
 
 struct MainWindow: View {
-    @EnvironmentObject var appState: AppState
+    @Environment(AppState.self) var appState
 
     var body: some View {
+        @Bindable var appState = appState
         ZStack {
-            if appState.showAnnotationCanvas, let image = appState.capturedImage {
+            if appState.capture.showAnnotationCanvas, let image = appState.capture.capturedImage {
                 AnnotationCanvasView(image: image)
             } else {
                 WelcomeView()
@@ -16,22 +17,22 @@ struct MainWindow: View {
         .background(
             WindowAccessor { window in
                 guard let window else { return }
-                if let current = appState.mainWindow, current === window {
+                if let current = appState.capture.mainWindow, current === window {
                     return
                 }
                 window.identifier = NSUserInterfaceItemIdentifier("MainWindow")
-                appState.mainWindow = window
+                appState.capture.mainWindow = window
             }
         )
         .sheet(isPresented: $appState.showPinWindow) {
             PinWindow()
-                .environmentObject(appState)
+                .environment(appState)
         }
     }
 }
 
 struct WelcomeView: View {
-    @EnvironmentObject var appState: AppState
+    @Environment(AppState.self) var appState
     @State private var selectedTab = 0
 
     var body: some View {
@@ -51,7 +52,7 @@ struct WelcomeView: View {
 
                 Text("Beautiful screenshots, made simple.")
                     .font(.system(size: 16, weight: .regular))
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
             }
             .padding(.top, 60)
 
@@ -59,7 +60,7 @@ struct WelcomeView: View {
 
             // Quick Actions
             VStack(spacing: 16) {
-                if appState.screenCapturePermissionStatus == .denied {
+                if appState.capture.screenCapturePermissionStatus == .denied {
                     ScreenCapturePermissionNotice()
                 }
 
@@ -95,20 +96,20 @@ struct WelcomeView: View {
             Spacer()
 
             // Recent History Preview
-            if !appState.screenshotHistory.isEmpty {
+            if !appState.history.screenshotHistory.isEmpty {
                 RecentHistoryView()
                     .padding(.bottom, 20)
             }
         }
         .background(VisualEffectView(material: .windowBackground, blendingMode: .behindWindow))
         .onAppear {
-            appState.refreshScreenCapturePermissionStatus()
+            appState.capture.refreshScreenCapturePermissionStatus()
         }
     }
 }
 
 struct ScreenCapturePermissionNotice: View {
-    @EnvironmentObject var appState: AppState
+    @Environment(AppState.self) var appState
 
     var body: some View {
         HStack(spacing: 12) {
@@ -127,7 +128,7 @@ struct ScreenCapturePermissionNotice: View {
             Spacer()
 
             Button("Open System Settings") {
-                appState.openScreenCaptureSettings()
+                appState.capture.openScreenCaptureSettings()
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.small)
@@ -165,18 +166,18 @@ struct CaptureButton: View {
                         .font(.system(size: 16, weight: .semibold, design: .rounded))
                     Text(subtitle)
                         .font(.system(size: 12, weight: .regular))
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                 }
 
                 Spacer()
 
                 Text(keyboard)
                     .font(.system(size: 12, weight: .medium, design: .rounded))
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
                     .padding(.horizontal, 10)
                     .padding(.vertical, 4)
                     .background(Color.secondary.opacity(0.1))
-                    .cornerRadius(6)
+                    .clipShape(.rect(cornerRadius: 6))
             }
             .padding(.horizontal, 20)
             .padding(.vertical, 16)
@@ -199,14 +200,14 @@ struct CaptureButton: View {
 }
 
 struct RecentHistoryView: View {
-    @EnvironmentObject var appState: AppState
+    @Environment(AppState.self) var appState
 
     var body: some View {
         VStack(spacing: 8) {
             HStack {
                 Text("Recent Screenshots")
                     .font(.system(size: 12, weight: .medium, design: .rounded))
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
                 Spacer()
                 Button("View All") {
                     appState.showHistory = true
@@ -214,13 +215,14 @@ struct RecentHistoryView: View {
                 .font(.system(size: 12, weight: .medium, design: .rounded))
             }
 
-            ScrollView(.horizontal, showsIndicators: false) {
+            ScrollView(.horizontal) {
                 HStack(spacing: 12) {
-                    ForEach(appState.screenshotHistory.prefix(5)) { item in
+                    ForEach(appState.history.screenshotHistory.prefix(5)) { item in
                         HistoryThumbnailView(item: item)
                     }
                 }
             }
+            .scrollIndicators(.hidden)
         }
         .padding(.horizontal, 40)
         .padding(.vertical, 16)
@@ -234,7 +236,7 @@ struct RecentHistoryView: View {
 
 struct HistoryThumbnailView: View {
     let item: ScreenshotItem
-    @EnvironmentObject var appState: AppState
+    @Environment(AppState.self) var appState
 
     var body: some View {
         Button {
@@ -259,7 +261,7 @@ struct HistoryThumbnailView: View {
 
                 Text(item.date, style: .time)
                     .font(.system(size: 10, weight: .regular, design: .rounded))
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
             }
         }
         .buttonStyle(.plain)
@@ -285,5 +287,5 @@ struct VisualEffectView: NSViewRepresentable {
 
 #Preview {
     MainWindow()
-        .environmentObject(AppState())
+        .environment(AppState())
 }

@@ -1,5 +1,4 @@
 import SwiftUI
-import Combine
 import AppKit
 import ScreenCaptureKit
 import os
@@ -178,260 +177,32 @@ struct ScreenshotItem: Identifiable, Codable {
     }
 }
 
-@MainActor
-class AppState: ObservableObject {
-    // Maximum undo/redo stack depth to prevent unbounded memory growth
-    private let maxUndoRedoDepth = 30
+// MARK: - CaptureState
 
-    @Published var isCapturing = false
-    @Published var currentCaptureMode: CaptureMode = .region
-    @Published var capturedImage: NSImage?
-    @Published var showAnnotationCanvas = false
-    @Published var showHistory = false
-    @Published var showAboutWindow = false
-    @Published var showPreferences = false
-    @Published var showPinWindow = false
-    @Published var pinnedImage: NSImage?
-    @Published var screenshotHistory: [ScreenshotItem] = []
-
-    @Published var selectedTool: AnnotationTool = .arrow
-    @Published var selectedColor: Color = .red
-    @Published var lineWidth: CGFloat = 2.0
-    @Published var annotations: [AnnotationElement] = []
-    @Published var undoStack: [[AnnotationElement]] = []
-    @Published var redoStack: [[AnnotationElement]] = []
-
-    @Published var isTransparentBackground = false
-    @Published var captureCountdown: Int = 0
-    @Published private(set) var screenCapturePermissionStatus: ScreenCapturePermissionStatus = .unknown
-    @Published var lastCaptureError: CaptureError?
+@Observable @MainActor
+final class CaptureState {
+    var isCapturing = false
+    var currentCaptureMode: CaptureMode = .region
+    var capturedImage: NSImage?
+    var showAnnotationCanvas = false
+    var captureCountdown: Int = 0
+    private(set) var screenCapturePermissionStatus: ScreenCapturePermissionStatus = .unknown
+    var lastCaptureError: CaptureError?
 
     let screenCapture: ScreenCapturing
-    let historyManager: HistoryPersisting
-    private let captureOverlayController = CaptureOverlayWindowController()
-    private let screenCaptureAccessPromptedKey = "didPromptScreenCaptureAccess"
-    private var captureTimer: Timer?
-    private var wasMainWindowVisibleBeforeCapture = false
-    weak var mainWindow: NSWindow?
+    @ObservationIgnored let captureOverlayController = CaptureOverlayWindowController()
+    @ObservationIgnored private let screenCaptureAccessPromptedKey = "didPromptScreenCaptureAccess"
+    @ObservationIgnored var wasMainWindowVisibleBeforeCapture = false
+    @ObservationIgnored weak var mainWindow: NSWindow?
 
-    var copyAfterCapture: Bool {
-        get { UserDefaults.standard.bool(forKey: "copyAfterCapture") }
-        set { UserDefaults.standard.set(newValue, forKey: "copyAfterCapture") }
-    }
-
-    var showPreviewAfterCapture: Bool {
-        get {
-            if UserDefaults.standard.object(forKey: "showPreviewAfterCapture") == nil {
-                return true
-            }
-            return UserDefaults.standard.bool(forKey: "showPreviewAfterCapture")
-        }
-        set { UserDefaults.standard.set(newValue, forKey: "showPreviewAfterCapture") }
-    }
-
-    var timerDuration: Int {
-        get {
-            let val = UserDefaults.standard.integer(forKey: "timerDuration")
-            return val > 0 ? val : 3
-        }
-        set { UserDefaults.standard.set(newValue, forKey: "timerDuration") }
-    }
-
-    var historyLimit: Int {
-        get {
-            let val = UserDefaults.standard.integer(forKey: "historyLimit")
-            return val > 0 ? val : 50
-        }
-        set {
-            // Clamp value to valid range (1-1000) to prevent invalid states
-            let clamped = min(max(newValue, 1), 1000)
-            UserDefaults.standard.set(clamped, forKey: "historyLimit")
-        }
-    }
-
-    init(screenCapture: ScreenCapturing = ScreenCaptureService(),
-         historyManager: HistoryPersisting = ScreenshotHistoryManager()) {
+    init(screenCapture: ScreenCapturing = ScreenCaptureService()) {
         self.screenCapture = screenCapture
-        self.historyManager = historyManager
-        loadHistory()
-        setupNotifications()
-        refreshScreenCapturePermissionStatus()
     }
 
-    private func setupNotifications() {
-        NotificationCenter.default.addObserver(
-            forName: NSApplication.didBecomeActiveNotification,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            Task { @MainActor in
-                self?.refreshScreenCapturePermissionStatus()
-            }
-        }
-    }
-
-    func startCapture(mode: CaptureMode) {
-        Task { @MainActor [weak self] in
-            guard let self else { return }
-
-            let hasAccess = await currentScreenCaptureAccess()
-            if !hasAccess {
-                if !requestScreenCaptureAccess() {
-                    screenCapturePermissionStatus = .denied
-                    lastCaptureError = .permissionDenied
-                    appLogger.warning("Screen capture permission denied")
-                    revealMainWindowForPermissionGuidance()
-                    return
-                }
-
-                let grantedAfterRequest = await currentScreenCaptureAccess()
-                screenCapturePermissionStatus = grantedAfterRequest ? .granted : .denied
-                guard grantedAfterRequest else {
-                    revealMainWindowForPermissionGuidance()
-                    return
-                }
-            } else {
-                screenCapturePermissionStatus = .granted
-            }
-
-            beginCapture(mode: mode)
-        }
-    }
-
-    func handleCapturedImage(_ image: NSImage) {
-        capturedImage = image
-        let shouldShowMainWindow = showPreviewAfterCapture || wasMainWindowVisibleBeforeCapture
-        endCapture(showMainWindow: shouldShowMainWindow)
-
-        if copyAfterCapture {
-            screenCapture.copyToClipboard(image)
-        }
-
-        if showPreviewAfterCapture {
-            showAnnotationCanvas = true
-        } else {
-            if let path = screenCapture.saveImage(image, to: historyManager.saveDirectory) {
-                addToHistory(path: path, image: image)
-            } else {
-                lastCaptureError = .saveFailed(historyManager.saveDirectory.path)
-                appLogger.error("Failed to save captured image to \(self.historyManager.saveDirectory.path, privacy: .public)")
-            }
-        }
-    }
-
-    func cancelCapture() {
-        captureTimer?.invalidate()
-        captureCountdown = 0
-        endCapture(showMainWindow: wasMainWindowVisibleBeforeCapture)
-    }
-
-    func endCaptureRestoringWindow() {
-        endCapture(showMainWindow: wasMainWindowVisibleBeforeCapture)
-    }
-
-    func saveAnnotation() {
-        let imageToSave = currentEditableImage()
-        guard let imageToSave else { return }
-        guard let savedPath = screenCapture.saveImage(imageToSave, to: historyManager.saveDirectory) else {
-            appLogger.error("Failed to save annotation")
-            return
-        }
-        addToHistory(path: savedPath, image: imageToSave)
-        resetAnnotationState()
-        showAnnotationCanvas = false
-    }
-
-    func addToHistory(path: String, image: NSImage) {
-        let itemID = UUID()
-        let capturedAt = Date()
-
-        let item = ScreenshotItem(id: itemID, date: capturedAt, filePath: path, thumbnail: nil)
-        screenshotHistory.insert(item, at: 0)
-        let removed = trimHistoryToLimit()
-        historyManager.saveHistory(screenshotHistory)
-        if !removed.isEmpty {
-            historyManager.removeFiles(atPaths: removed.map(\.filePath))
-        }
-
-        DispatchQueue.global(qos: .utility).async { [weak self] in
-            guard let self else { return }
-            let thumbnail = image.jpegThumbnailData(maxSize: NSSize(width: 300, height: 200))
-            Task { @MainActor [weak self] in
-                guard let self else { return }
-                guard let index = self.screenshotHistory.firstIndex(where: { $0.id == itemID }) else {
-                    return
-                }
-                self.screenshotHistory[index] = ScreenshotItem(
-                    id: itemID,
-                    date: capturedAt,
-                    filePath: path,
-                    thumbnail: thumbnail
-                )
-                self.historyManager.saveHistory(self.screenshotHistory)
-            }
-        }
-    }
-
-    func loadHistory() {
-        screenshotHistory = historyManager.loadHistory()
-        let removed = trimHistoryToLimit()
-        historyManager.saveHistory(screenshotHistory)
-        if !removed.isEmpty {
-            historyManager.removeFiles(atPaths: removed.map(\.filePath))
-        }
-    }
-
-    func clearHistory() {
-        let removed = screenshotHistory
-        screenshotHistory.removeAll()
-        historyManager.saveHistory([])
-        historyManager.removeFiles(atPaths: removed.map(\.filePath))
-    }
-
-    func deleteHistoryItem(_ item: ScreenshotItem) {
-        screenshotHistory.removeAll { $0.id == item.id }
-        historyManager.saveHistory(screenshotHistory)
-        historyManager.removeFiles(atPaths: [item.filePath])
-    }
-
-    private func trimHistoryToLimit() -> [ScreenshotItem] {
-        guard screenshotHistory.count > historyLimit else { return [] }
-        let overflow = Array(screenshotHistory.suffix(from: historyLimit))
-        screenshotHistory.removeLast(overflow.count)
-        return overflow
-    }
-
-    private func startScreenCountdown() {
-        captureTimer?.invalidate()
-        captureCountdown = timerDuration
-        captureTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
-            Task { @MainActor in
-                guard let self else { return }
-                if self.captureCountdown > 1 {
-                    self.captureCountdown -= 1
-                    return
-                }
-
-                self.captureCountdown = 0
-                self.captureTimer?.invalidate()
-                self.captureTimer = nil
-
-                if let image = self.screenCapture.captureFullScreen() {
-                    self.handleCapturedImage(image)
-                } else {
-                    self.endCapture(showMainWindow: self.wasMainWindowVisibleBeforeCapture)
-                }
-            }
-        }
-    }
-
-    private func endCapture(showMainWindow: Bool) {
+    func endCapture(showMainWindow: Bool) {
         isCapturing = false
-        captureTimer?.invalidate()
-        captureTimer = nil
         captureCountdown = 0
         captureOverlayController.hide()
-
         if showMainWindow, let window = mainWindow {
             window.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)
@@ -458,11 +229,10 @@ class AppState: ObservableObject {
         _ = NSWorkspace.shared.open(settingsURL)
     }
 
-    private func currentScreenCaptureAccess() async -> Bool {
+    func currentScreenCaptureAccess() async -> Bool {
         if CGPreflightScreenCaptureAccess() {
             return true
         }
-
         do {
             _ = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
             return true
@@ -471,77 +241,295 @@ class AppState: ObservableObject {
         }
     }
 
-    private func requestScreenCaptureAccess() -> Bool {
+    func requestScreenCaptureAccess() -> Bool {
         UserDefaults.standard.set(true, forKey: screenCaptureAccessPromptedKey)
         let granted = CGRequestScreenCaptureAccess()
         screenCapturePermissionStatus = granted ? .granted : .denied
         return granted
     }
 
-    private func revealMainWindowForPermissionGuidance() {
+    func revealMainWindowForPermissionGuidance() {
         if let window = mainWindow {
             window.makeKeyAndOrderFront(nil)
         }
         NSApp.activate(ignoringOtherApps: true)
     }
+}
 
-    private func beginCapture(mode: CaptureMode) {
-        currentCaptureMode = mode
-        isCapturing = true
-        captureCountdown = 0
-        wasMainWindowVisibleBeforeCapture = mainWindow?.isVisible ?? false
-        mainWindow?.orderOut(nil)
-        captureOverlayController.show(mode: mode, appState: self)
+// MARK: - AnnotationState
 
-        if mode == .screen {
-            startScreenCountdown()
-        }
-    }
+@Observable @MainActor
+final class AnnotationState {
+    @ObservationIgnored private let maxUndoRedoDepth = 30
+
+    var selectedTool: AnnotationTool = .arrow
+    var selectedColor: Color = .red
+    var lineWidth: CGFloat = 2.0
+    var elements: [AnnotationElement] = []
+    var undoStack: [[AnnotationElement]] = []
+    var redoStack: [[AnnotationElement]] = []
 
     func addAnnotation(_ element: AnnotationElement) {
-        undoStack.append(annotations)
-        // Cap undo stack to prevent unbounded memory growth
+        undoStack.append(elements)
         if undoStack.count > maxUndoRedoDepth {
             undoStack.removeFirst()
         }
         redoStack.removeAll()
-        annotations.append(element)
+        elements.append(element)
     }
 
     func undo() {
         guard let lastState = undoStack.popLast() else { return }
-        redoStack.append(annotations)
-        // Cap redo stack to prevent unbounded memory growth
+        redoStack.append(elements)
         if redoStack.count > maxUndoRedoDepth {
             redoStack.removeFirst()
         }
-        annotations = lastState
+        elements = lastState
     }
 
     func redo() {
         guard let nextState = redoStack.popLast() else { return }
-        undoStack.append(annotations)
-        // Cap undo stack to prevent unbounded memory growth
+        undoStack.append(elements)
         if undoStack.count > maxUndoRedoDepth {
             undoStack.removeFirst()
         }
-        annotations = nextState
+        elements = nextState
     }
 
     func clearAnnotations() {
-        undoStack.append(annotations)
-        // Cap undo stack to prevent unbounded memory growth
+        undoStack.append(elements)
         if undoStack.count > maxUndoRedoDepth {
             undoStack.removeFirst()
         }
         redoStack.removeAll()
-        annotations = []
+        elements = []
     }
 
     func resetAnnotationState() {
-        annotations = []
+        elements = []
         undoStack = []
         redoStack = []
+    }
+}
+
+// MARK: - HistoryState
+
+@Observable @MainActor
+final class HistoryState {
+    var screenshotHistory: [ScreenshotItem] = []
+    let historyManager: HistoryPersisting
+
+    init(historyManager: HistoryPersisting = ScreenshotHistoryManager()) {
+        self.historyManager = historyManager
+    }
+
+    func addToHistory(path: String, image: NSImage, limit: Int) {
+        let itemID = UUID()
+        let capturedAt = Date()
+
+        let item = ScreenshotItem(id: itemID, date: capturedAt, filePath: path, thumbnail: nil)
+        screenshotHistory.insert(item, at: 0)
+        let removed = trimHistoryToLimit(limit: limit)
+        historyManager.saveHistory(screenshotHistory)
+        if !removed.isEmpty {
+            historyManager.removeFiles(atPaths: removed.map(\.filePath))
+        }
+
+        DispatchQueue.global(qos: .utility).async { [weak self] in
+            guard let self else { return }
+            let thumbnail = image.jpegThumbnailData(maxSize: NSSize(width: 300, height: 200))
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                guard let index = self.screenshotHistory.firstIndex(where: { $0.id == itemID }) else {
+                    return
+                }
+                self.screenshotHistory[index] = ScreenshotItem(
+                    id: itemID,
+                    date: capturedAt,
+                    filePath: path,
+                    thumbnail: thumbnail
+                )
+                self.historyManager.saveHistory(self.screenshotHistory)
+            }
+        }
+    }
+
+    func loadHistory(limit: Int) {
+        screenshotHistory = historyManager.loadHistory()
+        let removed = trimHistoryToLimit(limit: limit)
+        historyManager.saveHistory(screenshotHistory)
+        if !removed.isEmpty {
+            historyManager.removeFiles(atPaths: removed.map(\.filePath))
+        }
+    }
+
+    func clearHistory() {
+        let removed = screenshotHistory
+        screenshotHistory.removeAll()
+        historyManager.saveHistory([])
+        historyManager.removeFiles(atPaths: removed.map(\.filePath))
+    }
+
+    func deleteHistoryItem(_ item: ScreenshotItem) {
+        screenshotHistory.removeAll { $0.id == item.id }
+        historyManager.saveHistory(screenshotHistory)
+        historyManager.removeFiles(atPaths: [item.filePath])
+    }
+
+    private func trimHistoryToLimit(limit: Int) -> [ScreenshotItem] {
+        guard screenshotHistory.count > limit else { return [] }
+        let overflow = Array(screenshotHistory.suffix(from: limit))
+        screenshotHistory.removeLast(overflow.count)
+        return overflow
+    }
+}
+
+// MARK: - AppState (Coordinator)
+
+@Observable @MainActor
+final class AppState {
+    let capture: CaptureState
+    let annotations: AnnotationState
+    let history: HistoryState
+
+    var showAboutWindow = false
+    var showPreferences = false
+    var showHistory = false
+    var showPinWindow = false
+    var pinnedImage: NSImage?
+    var isTransparentBackground = false
+
+    // Preferences (stored properties synced to UserDefaults via didSet)
+    var copyAfterCapture: Bool = false {
+        didSet { UserDefaults.standard.set(copyAfterCapture, forKey: "copyAfterCapture") }
+    }
+    var showPreviewAfterCapture: Bool = true {
+        didSet { UserDefaults.standard.set(showPreviewAfterCapture, forKey: "showPreviewAfterCapture") }
+    }
+    var timerDuration: Int = 3 {
+        didSet { UserDefaults.standard.set(timerDuration, forKey: "timerDuration") }
+    }
+    var historyLimit: Int = 50 {
+        didSet {
+            let clamped = min(max(historyLimit, 1), 1000)
+            if historyLimit != clamped {
+                historyLimit = clamped
+                return
+            }
+            UserDefaults.standard.set(historyLimit, forKey: "historyLimit")
+        }
+    }
+
+    @ObservationIgnored private var captureTimer: Timer?
+
+    init(screenCapture: ScreenCapturing = ScreenCaptureService(),
+         historyManager: HistoryPersisting = ScreenshotHistoryManager()) {
+        self.capture = CaptureState(screenCapture: screenCapture)
+        self.annotations = AnnotationState()
+        self.history = HistoryState(historyManager: historyManager)
+
+        // Load preferences from UserDefaults
+        self.copyAfterCapture = UserDefaults.standard.bool(forKey: "copyAfterCapture")
+        self.showPreviewAfterCapture = UserDefaults.standard.object(forKey: "showPreviewAfterCapture") == nil
+            ? true : UserDefaults.standard.bool(forKey: "showPreviewAfterCapture")
+        let rawTimer = UserDefaults.standard.integer(forKey: "timerDuration")
+        self.timerDuration = rawTimer > 0 ? rawTimer : 3
+        let rawLimit = UserDefaults.standard.integer(forKey: "historyLimit")
+        self.historyLimit = rawLimit > 0 ? rawLimit : 50
+
+        history.loadHistory(limit: historyLimit)
+        setupNotifications()
+        capture.refreshScreenCapturePermissionStatus()
+    }
+
+    private func setupNotifications() {
+        NotificationCenter.default.addObserver(
+            forName: NSApplication.didBecomeActiveNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                self?.capture.refreshScreenCapturePermissionStatus()
+            }
+        }
+    }
+
+    // MARK: - Cross-cutting Methods
+
+    func startCapture(mode: CaptureMode) {
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+
+            let hasAccess = await capture.currentScreenCaptureAccess()
+            if !hasAccess {
+                if !capture.requestScreenCaptureAccess() {
+                    capture.lastCaptureError = .permissionDenied
+                    appLogger.warning("Screen capture permission denied")
+                    capture.revealMainWindowForPermissionGuidance()
+                    return
+                }
+
+                let grantedAfterRequest = await capture.currentScreenCaptureAccess()
+                if !grantedAfterRequest {
+                    capture.revealMainWindowForPermissionGuidance()
+                    return
+                }
+            }
+
+            beginCapture(mode: mode)
+        }
+    }
+
+    func handleCapturedImage(_ image: NSImage) {
+        capture.capturedImage = image
+        let shouldShowMainWindow = showPreviewAfterCapture || capture.wasMainWindowVisibleBeforeCapture
+        captureTimer?.invalidate()
+        captureTimer = nil
+        capture.endCapture(showMainWindow: shouldShowMainWindow)
+
+        if copyAfterCapture {
+            capture.screenCapture.copyToClipboard(image)
+        }
+
+        if showPreviewAfterCapture {
+            capture.showAnnotationCanvas = true
+        } else {
+            if let path = capture.screenCapture.saveImage(image, to: history.historyManager.saveDirectory) {
+                history.addToHistory(path: path, image: image, limit: historyLimit)
+            } else {
+                capture.lastCaptureError = .saveFailed(history.historyManager.saveDirectory.path)
+                appLogger.error("Failed to save captured image to \(self.history.historyManager.saveDirectory.path, privacy: .public)")
+            }
+        }
+    }
+
+    func cancelCapture() {
+        captureTimer?.invalidate()
+        captureTimer = nil
+        capture.captureCountdown = 0
+        capture.endCapture(showMainWindow: capture.wasMainWindowVisibleBeforeCapture)
+    }
+
+    func endCaptureRestoringWindow() {
+        captureTimer?.invalidate()
+        captureTimer = nil
+        capture.endCapture(showMainWindow: capture.wasMainWindowVisibleBeforeCapture)
+    }
+
+    func saveAnnotation() {
+        let imageToSave = currentEditableImage()
+        guard let imageToSave else { return }
+        guard let savedPath = capture.screenCapture.saveImage(imageToSave, to: history.historyManager.saveDirectory) else {
+            appLogger.error("Failed to save annotation")
+            return
+        }
+        history.addToHistory(path: savedPath, image: imageToSave, limit: historyLimit)
+        annotations.resetAnnotationState()
+        capture.showAnnotationCanvas = false
+    }
+
+    func addToHistory(path: String, image: NSImage) {
+        history.addToHistory(path: path, image: image, limit: historyLimit)
     }
 
     func pinToScreen(_ image: NSImage) {
@@ -550,19 +538,21 @@ class AppState: ObservableObject {
     }
 
     func currentEditableImage() -> NSImage? {
-        renderAnnotatedImage() ?? capturedImage
+        renderAnnotatedImage() ?? capture.capturedImage
     }
+
+    // MARK: - Private Helpers
 
     @MainActor
     private func renderAnnotatedImage() -> NSImage? {
-        guard let image = capturedImage else { return nil }
+        guard let image = capture.capturedImage else { return nil }
         guard #available(macOS 13.0, *) else { return nil }
 
         let exportSize = image.size
         guard exportSize.width > 0, exportSize.height > 0 else { return nil }
 
         let exportRect = CGRect(origin: .zero, size: exportSize)
-        let scaledAnnotations = annotations.map { $0.denormalized(in: exportRect) }
+        let scaledAnnotations = annotations.elements.map { $0.denormalized(in: exportRect) }
 
         let content = AnnotationExportView(image: image, annotations: scaledAnnotations)
             .frame(width: exportSize.width, height: exportSize.height)
@@ -583,7 +573,45 @@ class AppState: ObservableObject {
         return NSScreen.main?.backingScaleFactor ?? 2.0
     }
 
+    private func beginCapture(mode: CaptureMode) {
+        capture.currentCaptureMode = mode
+        capture.isCapturing = true
+        capture.captureCountdown = 0
+        capture.wasMainWindowVisibleBeforeCapture = capture.mainWindow?.isVisible ?? false
+        capture.mainWindow?.orderOut(nil)
+        capture.captureOverlayController.show(mode: mode, appState: self)
+
+        if mode == .screen {
+            startScreenCountdown()
+        }
+    }
+
+    private func startScreenCountdown() {
+        captureTimer?.invalidate()
+        capture.captureCountdown = timerDuration
+        captureTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                guard let self else { return }
+                if self.capture.captureCountdown > 1 {
+                    self.capture.captureCountdown -= 1
+                    return
+                }
+
+                self.capture.captureCountdown = 0
+                self.captureTimer?.invalidate()
+                self.captureTimer = nil
+
+                if let image = self.capture.screenCapture.captureFullScreen() {
+                    self.handleCapturedImage(image)
+                } else {
+                    self.capture.endCapture(showMainWindow: self.capture.wasMainWindowVisibleBeforeCapture)
+                }
+            }
+        }
+    }
 }
+
+// MARK: - ScreenshotHistoryManager
 
 class ScreenshotHistoryManager: HistoryPersisting {
     static var defaultSaveDirectory: URL {

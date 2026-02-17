@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct PinWindow: View {
-    @EnvironmentObject var appState: AppState
+    @Environment(AppState.self) var appState
     @Environment(\.dismiss) private var dismiss
 
     @State private var offset: CGSize = .zero
@@ -67,7 +67,7 @@ struct PinWindow: View {
 }
 
 struct PinToolbarView: View {
-    @EnvironmentObject var appState: AppState
+    @Environment(AppState.self) var appState
     @State private var savedPath: String?
 
     var body: some View {
@@ -78,7 +78,7 @@ struct PinToolbarView: View {
             } label: {
                 Image(systemName: appState.isTransparentBackground ? "square.dashed" : "square.fill")
                     .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(.primary)
+                    .foregroundStyle(.primary)
                     .frame(width: 32, height: 32)
                     .background(
                         Circle()
@@ -94,12 +94,12 @@ struct PinToolbarView: View {
             // Copy
             Button {
                 if let image = appState.pinnedImage {
-                    appState.screenCapture.copyToClipboard(image)
+                    appState.capture.screenCapture.copyToClipboard(image)
                 }
             } label: {
                 Image(systemName: "doc.on.doc")
                     .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(.primary)
+                    .foregroundStyle(.primary)
                     .frame(width: 32, height: 32)
                     .background(
                         Circle()
@@ -113,7 +113,7 @@ struct PinToolbarView: View {
             Button {
                 if let image = appState.pinnedImage {
                     if savedPath == nil {
-                        savedPath = appState.screenCapture.saveImage(image, to: appState.historyManager.saveDirectory)
+                        savedPath = appState.capture.screenCapture.saveImage(image, to: appState.history.historyManager.saveDirectory)
                     }
                     if let path = savedPath {
                         appState.addToHistory(path: path, image: image)
@@ -122,7 +122,7 @@ struct PinToolbarView: View {
             } label: {
                 Image(systemName: "square.and.arrow.down")
                     .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(.primary)
+                    .foregroundStyle(.primary)
                     .frame(width: 32, height: 32)
                     .background(
                         Circle()
@@ -136,16 +136,16 @@ struct PinToolbarView: View {
             Button {
                 if let image = appState.pinnedImage {
                     if let path = savedPath {
-                        appState.screenCapture.openInFinder(path)
-                    } else if let path = appState.screenCapture.saveImage(image, to: appState.historyManager.saveDirectory) {
+                        appState.capture.screenCapture.openInFinder(path)
+                    } else if let path = appState.capture.screenCapture.saveImage(image, to: appState.history.historyManager.saveDirectory) {
                         savedPath = path
-                        appState.screenCapture.openInFinder(path)
+                        appState.capture.screenCapture.openInFinder(path)
                     }
                 }
             } label: {
                 Image(systemName: "folder")
                     .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(.primary)
+                    .foregroundStyle(.primary)
                     .frame(width: 32, height: 32)
                     .background(
                         Circle()
@@ -165,7 +165,7 @@ struct PinToolbarView: View {
             } label: {
                 Image(systemName: "xmark")
                     .font(.system(size: 12, weight: .medium))
-                    .foregroundColor(.primary)
+                    .foregroundStyle(.primary)
                     .frame(width: 28, height: 28)
                     .background(
                         Circle()
@@ -213,5 +213,5 @@ struct CheckerboardPattern: View {
 
 #Preview {
     PinWindow()
-        .environmentObject(AppState())
+        .environment(AppState())
 }

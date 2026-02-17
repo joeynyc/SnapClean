@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct CaptureOverlay: View {
-    @EnvironmentObject var appState: AppState
+    @Environment(AppState.self) var appState
     let mode: CaptureMode
 
     @State private var captureRect: CGRect = .zero
@@ -32,7 +32,7 @@ struct CaptureOverlay: View {
                 HStack {
                     Text("Press ESC to cancel")
                         .font(.system(size: 12, weight: .medium, design: .rounded))
-                        .foregroundColor(.white.opacity(0.7))
+                        .foregroundStyle(.white.opacity(0.7))
                         .padding(.horizontal, 12)
                         .padding(.vertical, 6)
                         .background(Capsule().fill(Color.black.opacity(0.5)))
@@ -65,7 +65,7 @@ struct CaptureOverlay: View {
                     VStack {
                         Text("\(Int(captureRect.width)) × \(Int(captureRect.height))")
                             .font(.system(size: 12, weight: .medium, design: .rounded))
-                            .foregroundColor(.white)
+                            .foregroundStyle(.white)
                             .padding(.horizontal, 8)
                             .padding(.vertical, 4)
                             .background(Capsule().fill(Color.black.opacity(0.7)))
@@ -76,7 +76,7 @@ struct CaptureOverlay: View {
                 // Crosshair cursor
                 Image(systemName: "plus")
                     .font(.system(size: 16, weight: .light))
-                    .foregroundColor(.white)
+                    .foregroundStyle(.white)
                     .position(localPoint)
             }
             .contentShape(Rectangle())
@@ -126,7 +126,7 @@ struct CaptureOverlay: View {
             }
             .onAppear {
                 // Fetch window list once when overlay appears (avoid expensive system calls on every render)
-                windowList = appState.screenCapture.getWindowList()
+                windowList = appState.capture.screenCapture.getWindowList()
             }
         }
     }
@@ -135,15 +135,15 @@ struct CaptureOverlay: View {
 
     private var screenCaptureView: some View {
         VStack(spacing: 20) {
-            if appState.captureCountdown > 0 {
-                Text("\(appState.captureCountdown)")
+            if appState.capture.captureCountdown > 0 {
+                Text("\(appState.capture.captureCountdown)")
                     .font(.system(size: 120, weight: .bold, design: .rounded))
-                    .foregroundColor(.white)
+                    .foregroundStyle(.white)
                     .shadow(radius: 10)
 
                 Text("Preparing to capture...")
                     .font(.system(size: 18, weight: .medium, design: .rounded))
-                    .foregroundColor(.white.opacity(0.8))
+                    .foregroundStyle(.white.opacity(0.8))
             } else {
                 ProgressView()
                     .progressViewStyle(CircularProgressViewStyle(tint: .white))
@@ -151,7 +151,7 @@ struct CaptureOverlay: View {
 
                 Text("Capturing...")
                     .font(.system(size: 18, weight: .medium, design: .rounded))
-                    .foregroundColor(.white.opacity(0.8))
+                    .foregroundStyle(.white.opacity(0.8))
             }
         }
     }
@@ -170,7 +170,7 @@ struct CaptureOverlay: View {
         let image: NSImage?
         switch mode {
         case .region:
-            image = appState.screenCapture.captureRegion(rect: captureRect)
+            image = appState.capture.screenCapture.captureRegion(rect: captureRect)
         case .window:
             image = nil
         case .screen:
@@ -185,7 +185,7 @@ struct CaptureOverlay: View {
     }
 
     private func performWindowCapture(window: (id: CGWindowID, name: String, bounds: CGRect)) {
-        if let image = appState.screenCapture.captureWindowByID(window.id, bounds: window.bounds) {
+        if let image = appState.capture.screenCapture.captureWindowByID(window.id, bounds: window.bounds) {
             appState.handleCapturedImage(image)
         }
     }
@@ -205,7 +205,7 @@ struct WindowHighlightView: View {
             .overlay(
                 Text(window.name)
                     .font(.system(size: 11, weight: .medium, design: .rounded))
-                    .foregroundColor(.white)
+                    .foregroundStyle(.white)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 4)
                     .background(Capsule().fill(Color.black.opacity(0.7)))

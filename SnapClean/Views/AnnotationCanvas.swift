@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct AnnotationCanvasView: View {
-    @EnvironmentObject var appState: AppState
+    @Environment(AppState.self) var appState
     let image: NSImage
 
     @State private var isDrawing = false
@@ -20,7 +20,7 @@ struct AnnotationCanvasView: View {
                 Color(NSColor.controlBackgroundColor)
 
                 // Main canvas area
-                ScrollView([.horizontal, .vertical], showsIndicators: false) {
+                ScrollView([.horizontal, .vertical]) {
                     ZStack {
                         // Base image
                         Image(nsImage: image)
@@ -29,7 +29,7 @@ struct AnnotationCanvasView: View {
 
                         // Single Canvas for all persisted annotations (more efficient than per-annotation Canvas views)
                         Canvas { context, size in
-                            for element in appState.annotations {
+                            for element in appState.annotations.elements {
                                 let denormalized = element.denormalized(in: imageFrame)
                                 AnnotationRenderer.draw(denormalized, in: context)
                             }
@@ -39,45 +39,45 @@ struct AnnotationCanvasView: View {
                         // Current drawing
                         if !currentPath.isEmpty {
                             AnnotationRenderer(
-                                tool: appState.selectedTool,
+                                tool: appState.annotations.selectedTool,
                                 points: currentPath,
-                                color: appState.selectedColor,
-                                lineWidth: appState.lineWidth
+                                color: appState.annotations.selectedColor,
+                                lineWidth: appState.annotations.lineWidth
                             )
                         }
 
                         // Current shape preview
-                        if isDrawing && (appState.selectedTool == .arrow || appState.selectedTool == .rectangle || appState.selectedTool == .oval || appState.selectedTool == .line) {
+                        if isDrawing && (appState.annotations.selectedTool == .arrow || appState.annotations.selectedTool == .rectangle || appState.annotations.selectedTool == .oval || appState.annotations.selectedTool == .line) {
                             AnnotationRenderer(
-                                tool: appState.selectedTool,
+                                tool: appState.annotations.selectedTool,
                                 startPoint: currentStartPoint,
                                 endPoint: currentEndPoint,
-                                color: appState.selectedColor,
-                                lineWidth: appState.lineWidth
+                                color: appState.annotations.selectedColor,
+                                lineWidth: appState.annotations.lineWidth
                             )
                         }
 
                         // Text input overlay
                         if isEnteringText {
                             TextEditor(text: $textInput)
-                                .font(.system(size: appState.lineWidth * 8, design: .rounded))
-                                .foregroundColor(appState.selectedColor)
+                                .font(.system(size: appState.annotations.lineWidth * 8, design: .rounded))
+                                .foregroundStyle(appState.annotations.selectedColor)
                                 .frame(width: 200, height: 50)
                                 .position(currentEndPoint)
                                 .background(Color.clear)
                                 .onDisappear {
                                     if !textInput.isEmpty {
-                                        let fontSize = appState.lineWidth * 8
+                                        let fontSize = appState.annotations.lineWidth * 8
                                         if let element = AnnotationElement.normalized(
                                             tool: .text,
                                             points: [currentEndPoint],
-                                            color: appState.selectedColor,
-                                            lineWidth: appState.lineWidth,
+                                            color: appState.annotations.selectedColor,
+                                            lineWidth: appState.annotations.lineWidth,
                                             text: textInput,
                                             fontSize: fontSize,
                                             in: imageFrame
                                         ) {
-                                            appState.addAnnotation(element)
+                                            appState.annotations.addAnnotation(element)
                                         }
                                     }
                                     textInput = ""
@@ -87,6 +87,7 @@ struct AnnotationCanvasView: View {
                     }
                     .frame(minWidth: geometry.size.width, minHeight: geometry.size.height)
                 }
+                .scrollIndicators(.hidden)
             }
             .toolbar {
                 ToolbarItemGroup(placement: .automatic) {
@@ -99,7 +100,7 @@ struct AnnotationCanvasView: View {
             .simultaneousGesture(
                 SpatialTapGesture()
                     .onEnded { value in
-                        if appState.selectedTool == .text && !isDrawing {
+                        if appState.annotations.selectedTool == .text && !isDrawing {
                             currentEndPoint = value.location
                             isEnteringText = true
                         }
@@ -118,13 +119,13 @@ struct AnnotationCanvasView: View {
                             currentStartPoint = value.location
                             currentEndPoint = value.location
 
-                            if appState.selectedTool == .pencil {
+                            if appState.annotations.selectedTool == .pencil {
                                 currentPath = [value.location]
                             }
                         } else {
                             currentEndPoint = value.location
 
-                            if appState.selectedTool == .pencil {
+                            if appState.annotations.selectedTool == .pencil {
                                 currentPath.append(value.location)
                             }
                         }
@@ -135,12 +136,12 @@ struct AnnotationCanvasView: View {
                         }
 
                         let element: AnnotationElement?
-                        switch appState.selectedTool {
+                        switch appState.annotations.selectedTool {
                         case .arrow:
                             element = AnnotationElement.normalized(
                                 tool: .arrow,
-                                color: appState.selectedColor,
-                                lineWidth: appState.lineWidth,
+                                color: appState.annotations.selectedColor,
+                                lineWidth: appState.annotations.lineWidth,
                                 startPoint: currentStartPoint,
                                 endPoint: value.location,
                                 in: imageFrame
@@ -148,8 +149,8 @@ struct AnnotationCanvasView: View {
                         case .rectangle:
                             element = AnnotationElement.normalized(
                                 tool: .rectangle,
-                                color: appState.selectedColor,
-                                lineWidth: appState.lineWidth,
+                                color: appState.annotations.selectedColor,
+                                lineWidth: appState.annotations.lineWidth,
                                 startPoint: currentStartPoint,
                                 endPoint: value.location,
                                 in: imageFrame
@@ -157,8 +158,8 @@ struct AnnotationCanvasView: View {
                         case .oval:
                             element = AnnotationElement.normalized(
                                 tool: .oval,
-                                color: appState.selectedColor,
-                                lineWidth: appState.lineWidth,
+                                color: appState.annotations.selectedColor,
+                                lineWidth: appState.annotations.lineWidth,
                                 startPoint: currentStartPoint,
                                 endPoint: value.location,
                                 in: imageFrame
@@ -166,8 +167,8 @@ struct AnnotationCanvasView: View {
                         case .line:
                             element = AnnotationElement.normalized(
                                 tool: .line,
-                                color: appState.selectedColor,
-                                lineWidth: appState.lineWidth,
+                                color: appState.annotations.selectedColor,
+                                lineWidth: appState.annotations.lineWidth,
                                 startPoint: currentStartPoint,
                                 endPoint: value.location,
                                 in: imageFrame
@@ -176,8 +177,8 @@ struct AnnotationCanvasView: View {
                             element = AnnotationElement.normalized(
                                 tool: .pencil,
                                 points: currentPath,
-                                color: appState.selectedColor,
-                                lineWidth: appState.lineWidth,
+                                color: appState.annotations.selectedColor,
+                                lineWidth: appState.annotations.lineWidth,
                                 in: imageFrame
                             )
                         default:
@@ -185,7 +186,7 @@ struct AnnotationCanvasView: View {
                         }
 
                         if let el = element {
-                            appState.addAnnotation(el)
+                            appState.annotations.addAnnotation(el)
                         }
 
                         isDrawing = false
@@ -194,14 +195,14 @@ struct AnnotationCanvasView: View {
             )
         }
         .onAppear {
-            keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [self] event in
+            keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
                 let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
                 if flags == .command && event.charactersIgnoringModifiers == "z" {
-                    appState.undo()
+                    appState.annotations.undo()
                     return nil
                 }
                 if flags == [.command, .shift] && event.charactersIgnoringModifiers == "z" {
-                    appState.redo()
+                    appState.annotations.redo()
                     return nil
                 }
                 if flags == .command && event.charactersIgnoringModifiers == "s" {
@@ -210,7 +211,7 @@ struct AnnotationCanvasView: View {
                 }
                 if flags == .command && event.charactersIgnoringModifiers == "c" {
                     if let img = appState.currentEditableImage() {
-                        appState.screenCapture.copyToClipboard(img)
+                        appState.capture.screenCapture.copyToClipboard(img)
                     }
                     return nil
                 }
@@ -381,15 +382,15 @@ struct AnnotationRenderer: View {
 }
 
 struct BottomToolbarView: View {
-    @EnvironmentObject var appState: AppState
+    @Environment(AppState.self) var appState
 
     var body: some View {
         HStack(spacing: 20) {
             // Left side - Actions
             HStack(spacing: 12) {
                 ActionButton(icon: "xmark.circle", label: "Cancel") {
-                    appState.resetAnnotationState()
-                    appState.showAnnotationCanvas = false
+                    appState.annotations.resetAnnotationState()
+                    appState.capture.showAnnotationCanvas = false
                 }
 
                 Divider()
@@ -397,7 +398,7 @@ struct BottomToolbarView: View {
 
                 ActionButton(icon: "doc.on.doc", label: "Copy") {
                     guard let image = appState.currentEditableImage() else { return }
-                    appState.screenCapture.copyToClipboard(image)
+                    appState.capture.screenCapture.copyToClipboard(image)
                 }
 
                 ActionButton(icon: "square.and.arrow.down", label: "Save") {
@@ -415,14 +416,14 @@ struct BottomToolbarView: View {
 
             // Right side - Status
             if #available(macOS 26, *) {
-                Text("\(appState.annotations.count) annotations")
+                Text("\(appState.annotations.elements.count) annotations")
                     .font(.system(size: 12, weight: .medium, design: .rounded))
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
                     .glassEffect()
             } else {
-                Text("\(appState.annotations.count) annotations")
+                Text("\(appState.annotations.elements.count) annotations")
                     .font(.system(size: 12, weight: .medium, design: .rounded))
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
                     .padding(.horizontal, 10)
                     .padding(.vertical, 5)
                     .background(Capsule().fill(Color.secondary.opacity(0.15)))
@@ -470,7 +471,7 @@ struct ActionButton: View {
                 Text(label)
                     .font(.system(size: 12, weight: .medium, design: .rounded))
             }
-            .foregroundColor(isHovered ? .accentColor : .primary)
+            .foregroundStyle(isHovered ? Color.accentColor : .primary)
             .padding(.horizontal, 12)
             .padding(.vertical, 6)
             .background(
@@ -489,5 +490,5 @@ struct ActionButton: View {
 
 #Preview {
     AnnotationCanvasView(image: NSImage())
-        .environmentObject(AppState())
+        .environment(AppState())
 }

@@ -1,9 +1,10 @@
 import SwiftUI
 
 struct MenuBarView: View {
-    @EnvironmentObject var appState: AppState
+    @Environment(AppState.self) var appState
 
     var body: some View {
+        @Bindable var appState = appState
         VStack(alignment: .leading, spacing: 12) {
             // App title
             HStack {
@@ -20,14 +21,14 @@ struct MenuBarView: View {
                         .font(.system(size: 14, weight: .bold, design: .rounded))
                     Text("Beautiful screenshots")
                         .font(.system(size: 10, weight: .regular, design: .rounded))
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                 }
             }
             .padding(.bottom, 8)
 
             Divider()
 
-            if appState.screenCapturePermissionStatus == .denied {
+            if appState.capture.screenCapturePermissionStatus == .denied {
                 MenuBarScreenCapturePermissionNotice()
                 Divider()
             }
@@ -76,10 +77,10 @@ struct MenuBarView: View {
 
                     Spacer()
 
-                    if !appState.screenshotHistory.isEmpty {
-                        Text("\(appState.screenshotHistory.count)")
+                    if !appState.history.screenshotHistory.isEmpty {
+                        Text("\(appState.history.screenshotHistory.count)")
                             .font(.system(size: 11, weight: .medium, design: .rounded))
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(.secondary)
                             .padding(.horizontal, 8)
                             .padding(.vertical, 3)
                             .background(Capsule().fill(Color.secondary.opacity(0.15)))
@@ -104,7 +105,7 @@ struct MenuBarView: View {
 
                     Image(systemName: "chevron.right")
                         .font(.system(size: 10, weight: .medium))
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                 }
             }
             .buttonStyle(.plain)
@@ -129,16 +130,17 @@ struct MenuBarView: View {
         .padding(16)
         .frame(width: 250)
         .onAppear {
-            appState.refreshScreenCapturePermissionStatus()
+            appState.capture.refreshScreenCapturePermissionStatus()
         }
         .sheet(isPresented: $appState.showHistory) {
             HistoryPanel()
+                .environment(appState)
         }
     }
 }
 
 struct MenuBarScreenCapturePermissionNotice: View {
-    @EnvironmentObject var appState: AppState
+    @Environment(AppState.self) var appState
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -150,7 +152,7 @@ struct MenuBarScreenCapturePermissionNotice: View {
             }
 
             Button("Open System Settings") {
-                appState.openScreenCaptureSettings()
+                appState.capture.openScreenCaptureSettings()
             }
             .buttonStyle(.bordered)
             .controlSize(.small)
@@ -172,23 +174,23 @@ struct MenuButton: View {
             HStack(spacing: 12) {
                 Image(systemName: icon)
                     .font(.system(size: 16, weight: .medium))
-                    .foregroundColor(isHovered ? .accentColor : .primary)
+                    .foregroundStyle(isHovered ? Color.accentColor : .primary)
                     .frame(width: 24)
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title)
                         .font(.system(size: 13, weight: .medium, design: .rounded))
-                        .foregroundColor(isHovered ? .accentColor : .primary)
+                        .foregroundStyle(isHovered ? Color.accentColor : .primary)
                     Text(subtitle)
                         .font(.system(size: 10, weight: .regular, design: .rounded))
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                 }
 
                 Spacer()
 
                 Text(keyboard)
                     .font(.system(size: 10, weight: .medium, design: .rounded))
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
                     .padding(.horizontal, 6)
                     .padding(.vertical, 3)
                     .background(Capsule().fill(Color.secondary.opacity(0.1)))
@@ -211,5 +213,5 @@ struct MenuButton: View {
 
 #Preview {
     MenuBarView()
-        .environmentObject(AppState())
+        .environment(AppState())
 }
