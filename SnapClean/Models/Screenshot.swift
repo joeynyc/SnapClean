@@ -1,6 +1,5 @@
 import SwiftUI
 import AppKit
-import ScreenCaptureKit
 import os
 
 private let appLogger = Logger(subsystem: "com.snapclean.app", category: "app")
@@ -230,15 +229,29 @@ final class CaptureState {
     }
 
     func currentScreenCaptureAccess() async -> Bool {
+        // CGPreflightScreenCaptureAccess is unreliable on macOS 14+.
+        // Instead, check if we can read window names of other apps — macOS
+        // strips these when screen recording permission is not granted.
         if CGPreflightScreenCaptureAccess() {
             return true
         }
-        do {
-            _ = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
-            return true
-        } catch {
+
+        let selfPID = ProcessInfo.processInfo.processIdentifier
+        guard let windowList = CGWindowListCopyWindowInfo(
+            [.optionOnScreenOnly, .excludeDesktopElements],
+            kCGNullWindowID
+        ) as? [[CFString: Any]] else {
             return false
         }
+
+        for window in windowList {
+            guard let pid = window[kCGWindowOwnerPID] as? Int32, pid != selfPID else { continue }
+            if let name = window[kCGWindowName] as? String, !name.isEmpty {
+                return true
+            }
+        }
+
+        return false
     }
 
     func requestScreenCaptureAccess() -> Bool {
