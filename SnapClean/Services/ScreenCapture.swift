@@ -1,6 +1,7 @@
 import Foundation
 import Cocoa
 import CoreGraphics
+import ScreenCaptureKit
 import os
 
 // Shared CIContext for all filter operations (avoids expensive GPU/Metal setup on each call)
@@ -9,6 +10,10 @@ private let sharedCIContext = CIContext(options: [.useSoftwareRenderer: false])
 private let captureLogger = Logger(subsystem: "com.snapclean.app", category: "capture")
 
 class ScreenCaptureService: ScreenCapturing {
+    private final class CaptureBox<T>: @unchecked Sendable {
+        var value: T?
+    }
+
     private let dateFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd_HHmmss"
@@ -17,12 +22,23 @@ class ScreenCaptureService: ScreenCapturing {
 
     func captureRegion(rect: CGRect) -> NSImage? {
         let captureRect = rect.integral
-        guard let cgImage = CGWindowListCreateImage(
-            captureRect,
-            .optionOnScreenOnly,
-            kCGNullWindowID,
-            [.bestResolution]
-        ) else { return nil }
+        guard captureRect.width > 0, captureRect.height > 0 else { return nil }
+
+        let cgImage: CGImage?
+        if #available(macOS 14.0, *) {
+            cgImage = performSyncCapture {
+                try await self.captureRectWithScreenCaptureKit(captureRect)
+            }
+        } else {
+            cgImage = CGWindowListCreateImage(
+                captureRect,
+                .optionOnScreenOnly,
+                kCGNullWindowID,
+                [.bestResolution]
+            )
+        }
+
+        guard let cgImage else { return nil }
         return NSImage(cgImage: cgImage, size: captureRect.size)
     }
 
@@ -32,47 +48,201 @@ class ScreenCaptureService: ScreenCapturing {
         for screen in NSScreen.screens.dropFirst() {
             unionRect = unionRect.union(screen.frame)
         }
-        guard let cgImage = CGWindowListCreateImage(
-            unionRect,
-            .optionOnScreenOnly,
-            kCGNullWindowID,
-            [.bestResolution]
-        ) else { return nil }
-        return NSImage(cgImage: cgImage, size: unionRect.size)
+        let captureRect = unionRect
+
+        let cgImage: CGImage?
+        if #available(macOS 14.0, *) {
+            cgImage = performSyncCapture {
+                try await self.captureRectWithScreenCaptureKit(captureRect)
+            }
+        } else {
+            cgImage = CGWindowListCreateImage(
+                captureRect,
+                .optionOnScreenOnly,
+                kCGNullWindowID,
+                [.bestResolution]
+            )
+        }
+
+        guard let cgImage else { return nil }
+        return NSImage(cgImage: cgImage, size: captureRect.size)
     }
 
     func captureWindow(at point: CGPoint) -> NSImage? {
-        let windowList = CGWindowListCopyWindowInfo(.optionOnScreenOnly, CGWindowID(0))
-        guard let windowList = windowList else { return nil }
+        if #available(macOS 14.0, *) {
+            guard let result: (image: CGImage, size: CGSize) = performSyncCapture({
+                try await self.captureWindowAtPointWithScreenCaptureKit(point)
+            }) else { return nil }
+            return NSImage(cgImage: result.image, size: result.size)
+        } else {
+            let windowList = CGWindowListCopyWindowInfo(.optionOnScreenOnly, CGWindowID(0))
+            guard let windowList = windowList else { return nil }
 
-        let windows = windowList as? [[String: Any]] ?? []
-        for window in windows {
-            if let bounds = window[kCGWindowBounds as String] as? [String: Any],
-               let windowID = window[kCGWindowNumber as String] as? Int {
-                let rect = CGRect(
-                    x: bounds["X"] as? CGFloat ?? 0,
-                    y: bounds["Y"] as? CGFloat ?? 0,
-                    width: bounds["Width"] as? CGFloat ?? 0,
-                    height: bounds["Height"] as? CGFloat ?? 0
-                )
-                if rect.contains(point) {
-                    if let cgImage = CGWindowListCreateImage(rect, .optionOnScreenOnly, CGWindowID(windowID), []) {
-                        return NSImage(cgImage: cgImage, size: rect.size)
+            let windows = windowList as? [[String: Any]] ?? []
+            for window in windows {
+                if let bounds = window[kCGWindowBounds as String] as? [String: Any],
+                   let windowID = window[kCGWindowNumber as String] as? Int {
+                    let rect = CGRect(
+                        x: bounds["X"] as? CGFloat ?? 0,
+                        y: bounds["Y"] as? CGFloat ?? 0,
+                        width: bounds["Width"] as? CGFloat ?? 0,
+                        height: bounds["Height"] as? CGFloat ?? 0
+                    )
+                    if rect.contains(point) {
+                        if let cgImage = CGWindowListCreateImage(rect, .optionOnScreenOnly, CGWindowID(windowID), []) {
+                            return NSImage(cgImage: cgImage, size: rect.size)
+                        }
                     }
                 }
             }
+            return nil
         }
-        return nil
     }
 
     func captureWindowByID(_ windowID: CGWindowID, bounds: CGRect) -> NSImage? {
-        guard let cgImage = CGWindowListCreateImage(
-            bounds,
-            .optionIncludingWindow,
-            windowID,
-            [.boundsIgnoreFraming]
-        ) else { return nil }
-        return NSImage(cgImage: cgImage, size: bounds.size)
+        let cgImage: CGImage?
+        if #available(macOS 14.0, *) {
+            guard let result: (image: CGImage, size: CGSize) = performSyncCapture({
+                try await self.captureWindowByIDWithScreenCaptureKit(windowID)
+            }) else { return nil }
+            return NSImage(cgImage: result.image, size: result.size)
+        } else {
+            cgImage = CGWindowListCreateImage(
+                bounds,
+                .optionIncludingWindow,
+                windowID,
+                [.boundsIgnoreFraming]
+            )
+            guard let cgImage else { return nil }
+            return NSImage(cgImage: cgImage, size: bounds.size)
+        }
+    }
+
+    private func performSyncCapture<T>(
+        _ operation: @escaping @Sendable () async throws -> T?
+    ) -> T? {
+        let semaphore = DispatchSemaphore(value: 0)
+        let box = CaptureBox<T>()
+
+        Task.detached(priority: .userInitiated) {
+            defer { semaphore.signal() }
+            do {
+                box.value = try await operation()
+            } catch {
+                captureLogger.error("ScreenCaptureKit capture failed: \(error.localizedDescription, privacy: .private)")
+            }
+        }
+
+        semaphore.wait()
+        return box.value
+    }
+
+    @available(macOS 14.0, *)
+    private func captureRectWithScreenCaptureKit(_ rect: CGRect) async throws -> CGImage? {
+        let targetRect = rect.integral
+        guard targetRect.width > 0, targetRect.height > 0 else { return nil }
+
+        let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
+        let displays = content.displays.filter { $0.frame.intersects(targetRect) }
+        guard !displays.isEmpty else { return nil }
+
+        let composite = NSImage(size: targetRect.size)
+        composite.lockFocus()
+        defer { composite.unlockFocus() }
+
+        var drewAnySlice = false
+
+        for display in displays {
+            let sliceRect = display.frame.intersection(targetRect)
+            guard !sliceRect.isNull, sliceRect.width > 0, sliceRect.height > 0 else { continue }
+
+            let filter = SCContentFilter(display: display, excludingWindows: [])
+            let scale = displayScale(for: display)
+
+            let configuration = SCStreamConfiguration()
+            configuration.sourceRect = CGRect(
+                x: sliceRect.minX - display.frame.minX,
+                y: sliceRect.minY - display.frame.minY,
+                width: sliceRect.width,
+                height: sliceRect.height
+            )
+            configuration.width = max(Int((sliceRect.width * scale).rounded()), 1)
+            configuration.height = max(Int((sliceRect.height * scale).rounded()), 1)
+            configuration.showsCursor = false
+
+            let image = try await SCScreenshotManager.captureImage(
+                contentFilter: filter,
+                configuration: configuration
+            )
+
+            let renderedSlice = NSImage(cgImage: image, size: sliceRect.size)
+            let destination = CGRect(
+                x: sliceRect.minX - targetRect.minX,
+                y: sliceRect.minY - targetRect.minY,
+                width: sliceRect.width,
+                height: sliceRect.height
+            )
+            renderedSlice.draw(in: destination)
+            drewAnySlice = true
+        }
+
+        guard drewAnySlice else { return nil }
+        return composite.cgImage(forProposedRect: nil, context: nil, hints: nil)
+    }
+
+    @available(macOS 14.0, *)
+    private func captureWindowAtPointWithScreenCaptureKit(_ point: CGPoint) async throws -> (image: CGImage, size: CGSize)? {
+        let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
+        let selfPID = ProcessInfo.processInfo.processIdentifier
+
+        guard let window = content.windows.first(where: {
+            $0.owningApplication?.processID != selfPID &&
+            $0.frame.contains(point) &&
+            $0.frame.width > 1 &&
+            $0.frame.height > 1
+        }) else { return nil }
+
+        return try await captureWindowWithScreenCaptureKit(window, displays: content.displays)
+    }
+
+    @available(macOS 14.0, *)
+    private func captureWindowByIDWithScreenCaptureKit(_ windowID: CGWindowID) async throws -> (image: CGImage, size: CGSize)? {
+        let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
+        guard let window = content.windows.first(where: { $0.windowID == windowID }) else { return nil }
+        return try await captureWindowWithScreenCaptureKit(window, displays: content.displays)
+    }
+
+    @available(macOS 14.0, *)
+    private func captureWindowWithScreenCaptureKit(
+        _ window: SCWindow,
+        displays: [SCDisplay]
+    ) async throws -> (image: CGImage, size: CGSize) {
+        let filter = SCContentFilter(desktopIndependentWindow: window)
+        let scale = displayScaleForWindow(window, displays: displays)
+
+        let configuration = SCStreamConfiguration()
+        configuration.width = max(Int((window.frame.width * scale).rounded()), 1)
+        configuration.height = max(Int((window.frame.height * scale).rounded()), 1)
+        configuration.showsCursor = false
+
+        let image = try await SCScreenshotManager.captureImage(
+            contentFilter: filter,
+            configuration: configuration
+        )
+
+        return (image: image, size: window.frame.size)
+    }
+
+    @available(macOS 14.0, *)
+    private func displayScaleForWindow(_ window: SCWindow, displays: [SCDisplay]) -> CGFloat {
+        guard let display = displays.first(where: { $0.frame.intersects(window.frame) }) else { return 2.0 }
+        return displayScale(for: display)
+    }
+
+    @available(macOS 14.0, *)
+    private func displayScale(for display: SCDisplay) -> CGFloat {
+        guard display.frame.width > 0 else { return 2.0 }
+        return max(CGFloat(display.width) / display.frame.width, 1.0)
     }
 
     func getWindowList() -> [(id: CGWindowID, name: String, bounds: CGRect)] {
