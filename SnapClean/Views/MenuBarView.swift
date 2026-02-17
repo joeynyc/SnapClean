@@ -129,7 +129,6 @@ struct MenuBarView: View {
         .padding(16)
         .frame(width: 250)
         .onAppear {
-            appState.loadHistory()
             appState.refreshScreenCapturePermissionStatus()
         }
         .sheet(isPresented: $appState.showHistory) {

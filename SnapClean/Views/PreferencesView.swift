@@ -26,19 +26,11 @@ struct PreferencesView: View {
                     }
 
                     PreferencesTabButton(
-                        title: "Appearance",
-                        icon: "paintbrush",
+                        title: "Storage",
+                        icon: "internaldrive",
                         isSelected: selectedTab == 2
                     ) {
                         selectedTab = 2
-                    }
-
-                    PreferencesTabButton(
-                        title: "Storage",
-                        icon: "internaldrive",
-                        isSelected: selectedTab == 3
-                    ) {
-                        selectedTab = 3
                     }
                 }
                 .padding(12)
@@ -55,8 +47,6 @@ struct PreferencesView: View {
                     case 1:
                         ShortcutsPreferencesView()
                     case 2:
-                        AppearancePreferencesView()
-                    case 3:
                         StoragePreferencesView()
                     default:
                         EmptyView()
@@ -237,92 +227,6 @@ struct ShortcutRow: View {
                 .padding(.vertical, 4)
                 .background(Capsule().fill(Color.secondary.opacity(0.15)))
         }
-    }
-}
-
-struct AppearancePreferencesView: View {
-    var body: some View {
-        VStack(alignment: .leading, spacing: 24) {
-            Text("Appearance")
-                .font(.system(size: 18, weight: .bold, design: .rounded))
-
-            // Theme
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(spacing: 4) {
-                    Text("Theme")
-                        .font(.system(size: 13, weight: .semibold, design: .rounded))
-                    Text("Coming Soon")
-                        .font(.system(size: 10, weight: .medium, design: .rounded))
-                        .foregroundColor(.secondary)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(Capsule().fill(Color.secondary.opacity(0.15)))
-                }
-
-                HStack(spacing: 12) {
-                    Button {
-                    } label: {
-                        VStack {
-                            Image(systemName: "moon.fill")
-                                .font(.system(size: 24))
-                            Text("Dark")
-                                .font(.system(size: 11, design: .rounded))
-                        }
-                        .frame(width: 80, height: 60)
-                        .background(
-                            RoundedRectangle(cornerRadius: 10)
-                                .fill(Color.secondary.opacity(0.1))
-                        )
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(true)
-
-                    Button {
-                    } label: {
-                        VStack {
-                            Image(systemName: "sun.max.fill")
-                                .font(.system(size: 24))
-                            Text("Light")
-                                .font(.system(size: 11, design: .rounded))
-                        }
-                        .frame(width: 80, height: 60)
-                        .background(
-                            RoundedRectangle(cornerRadius: 10)
-                                .fill(Color.clear)
-                        )
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(true)
-                }
-            }
-
-            Divider()
-
-            // Toolbar style
-            VStack(alignment: .leading, spacing: 12) {
-                HStack(spacing: 4) {
-                    Text("Toolbar Style")
-                        .font(.system(size: 13, weight: .semibold, design: .rounded))
-                    Text("Coming Soon")
-                        .font(.system(size: 10, weight: .medium, design: .rounded))
-                        .foregroundColor(.secondary)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(Capsule().fill(Color.secondary.opacity(0.15)))
-                }
-
-                Picker("", selection: .constant(0)) {
-                    Text("Glass Effect").tag(0)
-                    Text("Solid").tag(1)
-                    Text("Minimal").tag(2)
-                }
-                .pickerStyle(.segmented)
-                .disabled(true)
-            }
-
-            Spacer()
-        }
-        .padding(24)
     }
 }
 

@@ -62,7 +62,10 @@ class HotkeyManager: HotkeyRegistering {
     }
 
     func unregister(keyCode: UInt16) {
+        hotkeyAccessLock.lock()
         let matching = signatureToHotkeyID.filter { $0.key.keyCode == keyCode }.map(\.value)
+        hotkeyAccessLock.unlock()
+
         for hotkeyID in matching {
             unregister(hotkeyID: hotkeyID)
         }
@@ -119,10 +122,10 @@ class HotkeyManager: HotkeyRegistering {
         guard status == noErr else { return status }
 
         hotkeyAccessLock.lock()
-        defer { hotkeyAccessLock.unlock() }
+        let action = hotkeyActions[hotkeyID.id]
+        hotkeyAccessLock.unlock()
 
-        if let action = hotkeyActions[hotkeyID.id] {
-            hotkeyAccessLock.unlock()
+        if let action {
             // Execute action outside the lock to avoid potential deadlock
             action()
             return noErr

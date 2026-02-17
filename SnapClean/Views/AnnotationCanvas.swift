@@ -31,7 +31,7 @@ struct AnnotationCanvasView: View {
                         Canvas { context, size in
                             for element in appState.annotations {
                                 let denormalized = element.denormalized(in: imageFrame)
-                                drawAnnotation(denormalized, context: context)
+                                AnnotationRenderer.draw(denormalized, in: context)
                             }
                         }
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -225,7 +225,61 @@ struct AnnotationCanvasView: View {
         }
     }
 
-    private func drawAnnotation(_ element: AnnotationElement, context: GraphicsContext) {
+    private func geometrySizeClamped(to size: CGSize) -> CGSize {
+        CGSize(width: max(size.width, 1), height: max(size.height, 1))
+    }
+
+    private func imageDisplayFrame(in availableSize: CGSize) -> CGRect {
+        let size = geometrySizeClamped(to: availableSize)
+        guard image.size.width > 0, image.size.height > 0 else {
+            return CGRect(origin: .zero, size: size)
+        }
+
+        let scale = min(size.width / image.size.width, size.height / image.size.height)
+        let width = image.size.width * scale
+        let height = image.size.height * scale
+        return CGRect(
+            x: (size.width - width) / 2,
+            y: (size.height - height) / 2,
+            width: width,
+            height: height
+        )
+    }
+}
+
+struct AnnotationRenderer: View {
+    let element: AnnotationElement
+
+    init(element: AnnotationElement) {
+        self.element = element
+    }
+
+    init(tool: AnnotationTool, points: [CGPoint], color: Color, lineWidth: CGFloat) {
+        self.element = AnnotationElement(
+            tool: tool,
+            points: points,
+            color: color,
+            lineWidth: lineWidth
+        )
+    }
+
+    init(tool: AnnotationTool, startPoint: CGPoint, endPoint: CGPoint, color: Color, lineWidth: CGFloat) {
+        self.element = AnnotationElement(
+            tool: tool,
+            color: color,
+            lineWidth: lineWidth,
+            startPoint: startPoint,
+            endPoint: endPoint
+        )
+    }
+
+    var body: some View {
+        Canvas { context, size in
+            AnnotationRenderer.draw(element, in: context)
+        }
+    }
+
+    static func draw(_ element: AnnotationElement, in context: GraphicsContext) {
         let color = element.color
 
         switch element.tool {
@@ -296,159 +350,7 @@ struct AnnotationCanvasView: View {
         }
     }
 
-    private func drawArrow(context: GraphicsContext, start: CGPoint, end: CGPoint, color: Color, lineWidth: CGFloat) {
-        // Draw line
-        var path = Path()
-        path.move(to: start)
-        path.addLine(to: end)
-        context.stroke(path, with: .color(color), lineWidth: lineWidth)
-
-        // Draw arrowhead
-        let arrowLength: CGFloat = 15
-        let angle = atan2(end.y - start.y, end.x - start.x)
-
-        let arrowTip = end
-        let leftPoint = CGPoint(
-            x: end.x - arrowLength * cos(angle - .pi / 6),
-            y: end.y - arrowLength * sin(angle - .pi / 6)
-        )
-        let rightPoint = CGPoint(
-            x: end.x - arrowLength * cos(angle + .pi / 6),
-            y: end.y - arrowLength * sin(angle + .pi / 6)
-        )
-
-        var arrowPath = Path()
-        arrowPath.move(to: arrowTip)
-        arrowPath.addLine(to: leftPoint)
-        arrowPath.addLine(to: rightPoint)
-        arrowPath.closeSubpath()
-        context.fill(arrowPath, with: .color(color))
-    }
-
-    private func geometrySizeClamped(to size: CGSize) -> CGSize {
-        CGSize(width: max(size.width, 1), height: max(size.height, 1))
-    }
-
-    private func imageDisplayFrame(in availableSize: CGSize) -> CGRect {
-        let size = geometrySizeClamped(to: availableSize)
-        guard image.size.width > 0, image.size.height > 0 else {
-            return CGRect(origin: .zero, size: size)
-        }
-
-        let scale = min(size.width / image.size.width, size.height / image.size.height)
-        let width = image.size.width * scale
-        let height = image.size.height * scale
-        return CGRect(
-            x: (size.width - width) / 2,
-            y: (size.height - height) / 2,
-            width: width,
-            height: height
-        )
-    }
-}
-
-struct AnnotationRenderer: View {
-    let element: AnnotationElement?
-
-    init(element: AnnotationElement) {
-        self.element = element
-    }
-
-    init(tool: AnnotationTool, points: [CGPoint], color: Color, lineWidth: CGFloat) {
-        self.element = AnnotationElement(
-            tool: tool,
-            points: points,
-            color: color,
-            lineWidth: lineWidth
-        )
-    }
-
-    init(tool: AnnotationTool, startPoint: CGPoint, endPoint: CGPoint, color: Color, lineWidth: CGFloat) {
-        self.element = AnnotationElement(
-            tool: tool,
-            color: color,
-            lineWidth: lineWidth,
-            startPoint: startPoint,
-            endPoint: endPoint
-        )
-    }
-
-    var body: some View {
-        if let el = element {
-            Canvas { context, size in
-                let color = el.color
-
-                switch el.tool {
-                case .arrow:
-                    drawArrow(context: context, start: el.startPoint ?? .zero, end: el.endPoint ?? .zero, color: color, lineWidth: el.lineWidth)
-
-                case .rectangle:
-                    if let start = el.startPoint, let end = el.endPoint {
-                        let rect = CGRect(
-                            x: min(start.x, end.x),
-                            y: min(start.y, end.y),
-                            width: abs(end.x - start.x),
-                            height: abs(end.y - start.y)
-                        )
-                        context.stroke(
-                            Path(rect),
-                            with: .color(color),
-                            lineWidth: el.lineWidth
-                        )
-                    }
-
-                case .oval:
-                    if let start = el.startPoint, let end = el.endPoint {
-                        let rect = CGRect(
-                            x: min(start.x, end.x),
-                            y: min(start.y, end.y),
-                            width: abs(end.x - start.x),
-                            height: abs(end.y - start.y)
-                        )
-                        context.stroke(
-                            Path(ellipseIn: rect),
-                            with: .color(color),
-                            lineWidth: el.lineWidth
-                        )
-                    }
-
-                case .line:
-                    if let start = el.startPoint, let end = el.endPoint {
-                        var path = Path()
-                        path.move(to: start)
-                        path.addLine(to: end)
-                        context.stroke(path, with: .color(color), lineWidth: el.lineWidth)
-                    }
-
-                case .pencil:
-                    if el.points.count > 1 {
-                        var path = Path()
-                        path.move(to: el.points[0])
-                        for point in el.points.dropFirst() {
-                            path.addLine(to: point)
-                        }
-                        context.stroke(path, with: .color(color), lineWidth: el.lineWidth)
-                    }
-
-                case .text:
-                    if let text = el.text, let point = el.points.first {
-                        let fontSize = el.fontSize ?? el.lineWidth * 8
-                        let resolved = context.resolve(
-                            Text(text)
-                                .font(.system(size: fontSize, design: .rounded))
-                                .foregroundColor(color)
-                        )
-                        context.draw(resolved, at: point, anchor: .topLeading)
-                    }
-
-                case .blur, .pixelate:
-                    break
-                }
-            }
-        }
-    }
-
-    private func drawArrow(context: GraphicsContext, start: CGPoint, end: CGPoint, color: Color, lineWidth: CGFloat) {
+    private static func drawArrow(context: GraphicsContext, start: CGPoint, end: CGPoint, color: Color, lineWidth: CGFloat) {
         // Draw line
         var path = Path()
         path.move(to: start)

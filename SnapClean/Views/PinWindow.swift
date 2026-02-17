@@ -68,6 +68,7 @@ struct PinWindow: View {
 
 struct PinToolbarView: View {
     @EnvironmentObject var appState: AppState
+    @State private var savedPath: String?
 
     var body: some View {
         HStack(spacing: 8) {
@@ -111,7 +112,10 @@ struct PinToolbarView: View {
             // Save
             Button {
                 if let image = appState.pinnedImage {
-                    if let path = appState.screenCapture.saveImage(image, to: appState.historyManager.saveDirectory) {
+                    if savedPath == nil {
+                        savedPath = appState.screenCapture.saveImage(image, to: appState.historyManager.saveDirectory)
+                    }
+                    if let path = savedPath {
                         appState.addToHistory(path: path, image: image)
                     }
                 }
@@ -131,7 +135,10 @@ struct PinToolbarView: View {
             // Open in Finder
             Button {
                 if let image = appState.pinnedImage {
-                    if let path = appState.screenCapture.saveImage(image, to: appState.historyManager.saveDirectory) {
+                    if let path = savedPath {
+                        appState.screenCapture.openInFinder(path)
+                    } else if let path = appState.screenCapture.saveImage(image, to: appState.historyManager.saveDirectory) {
+                        savedPath = path
                         appState.screenCapture.openInFinder(path)
                     }
                 }
