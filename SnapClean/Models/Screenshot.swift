@@ -268,6 +268,8 @@ final class AnnotationState {
     var elements: [AnnotationElement] = []
     var undoStack: [[AnnotationElement]] = []
     var redoStack: [[AnnotationElement]] = []
+    private(set) var canUndo: Bool = false
+    private(set) var canRedo: Bool = false
 
     func addAnnotation(_ element: AnnotationElement) {
         undoStack.append(elements)
@@ -276,6 +278,8 @@ final class AnnotationState {
         }
         redoStack.removeAll()
         elements.append(element)
+        canUndo = !undoStack.isEmpty
+        canRedo = !redoStack.isEmpty
     }
 
     func undo() {
@@ -285,6 +289,8 @@ final class AnnotationState {
             redoStack.removeFirst()
         }
         elements = lastState
+        canUndo = !undoStack.isEmpty
+        canRedo = !redoStack.isEmpty
     }
 
     func redo() {
@@ -294,6 +300,8 @@ final class AnnotationState {
             undoStack.removeFirst()
         }
         elements = nextState
+        canUndo = !undoStack.isEmpty
+        canRedo = !redoStack.isEmpty
     }
 
     func clearAnnotations() {
@@ -303,12 +311,16 @@ final class AnnotationState {
         }
         redoStack.removeAll()
         elements = []
+        canUndo = !undoStack.isEmpty
+        canRedo = !redoStack.isEmpty
     }
 
     func resetAnnotationState() {
         elements = []
         undoStack = []
         redoStack = []
+        canUndo = false
+        canRedo = false
     }
 }
 

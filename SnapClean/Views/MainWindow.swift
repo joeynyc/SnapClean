@@ -237,6 +237,7 @@ struct RecentHistoryView: View {
 struct HistoryThumbnailView: View {
     let item: ScreenshotItem
     @Environment(AppState.self) var appState
+    @State private var thumbnailImage: NSImage?
 
     var body: some View {
         Button {
@@ -250,8 +251,7 @@ struct HistoryThumbnailView: View {
             }
         } label: {
             VStack(spacing: 4) {
-                if let thumbnailData = item.thumbnail,
-                   let nsImage = NSImage(data: thumbnailData) {
+                if let nsImage = thumbnailImage {
                     Image(nsImage: nsImage)
                         .resizable()
                         .aspectRatio(contentMode: .fill)
@@ -265,6 +265,11 @@ struct HistoryThumbnailView: View {
             }
         }
         .buttonStyle(.plain)
+        .onAppear {
+            if thumbnailImage == nil, let data = item.thumbnail {
+                thumbnailImage = NSImage(data: data)
+            }
+        }
     }
 }
 

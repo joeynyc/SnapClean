@@ -208,6 +208,7 @@ struct CheckerboardPattern: View {
                 }
             }
         }
+        .drawingGroup()
     }
 }
 

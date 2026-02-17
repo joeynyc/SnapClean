@@ -15,6 +15,7 @@ struct AnnotationCanvasView: View {
     var body: some View {
         GeometryReader { geometry in
             let imageFrame = imageDisplayFrame(in: geometry.size)
+            let denormalized = appState.annotations.elements.map { $0.denormalized(in: imageFrame) }
             ZStack {
                 // Background
                 Color(NSColor.controlBackgroundColor)
@@ -29,9 +30,8 @@ struct AnnotationCanvasView: View {
 
                         // Single Canvas for all persisted annotations (more efficient than per-annotation Canvas views)
                         Canvas { context, size in
-                            for element in appState.annotations.elements {
-                                let denormalized = element.denormalized(in: imageFrame)
-                                AnnotationRenderer.draw(denormalized, in: context)
+                            for element in denormalized {
+                                AnnotationRenderer.draw(element, in: context)
                             }
                         }
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -449,8 +449,10 @@ struct AnnotationExportView: View {
                 .resizable()
                 .aspectRatio(contentMode: .fit)
 
-            ForEach(annotations) { element in
-                AnnotationRenderer(element: element)
+            Canvas { context, size in
+                for element in annotations {
+                    AnnotationRenderer.draw(element, in: context)
+                }
             }
         }
     }

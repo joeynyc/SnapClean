@@ -26,11 +26,11 @@ struct ToolbarView: View {
 
             // Undo/Redo
             HStack(spacing: 4) {
-                ToolbarIconButton(icon: "arrow.uturn.backward", isEnabled: !appState.annotations.undoStack.isEmpty) {
+                ToolbarIconButton(icon: "arrow.uturn.backward", isEnabled: appState.annotations.canUndo) {
                     appState.annotations.undo()
                 }
 
-                ToolbarIconButton(icon: "arrow.uturn.forward", isEnabled: !appState.annotations.redoStack.isEmpty) {
+                ToolbarIconButton(icon: "arrow.uturn.forward", isEnabled: appState.annotations.canRedo) {
                     appState.annotations.redo()
                 }
             }
