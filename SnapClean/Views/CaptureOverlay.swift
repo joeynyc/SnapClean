@@ -167,20 +167,22 @@ struct CaptureOverlay: View {
     }
 
     private func performCapture() {
-        let image: NSImage?
         switch mode {
         case .region:
-            image = appState.capture.screenCapture.captureRegion(rect: captureRect)
+            let rect = captureRect
+            appState.capture.captureOverlayController.hide()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                let image = appState.capture.screenCapture.captureRegion(rect: rect)
+                if let img = image {
+                    appState.handleCapturedImage(img)
+                } else {
+                    appState.endCaptureRestoringWindow()
+                }
+            }
         case .window:
-            image = nil
+            break
         case .screen:
-            image = nil
-        }
-
-        if let img = image {
-            appState.handleCapturedImage(img)
-        } else if mode == .region {
-            appState.endCaptureRestoringWindow()
+            break
         }
     }
 

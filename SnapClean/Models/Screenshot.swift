@@ -626,10 +626,13 @@ final class AppState {
                 self.captureTimer?.invalidate()
                 self.captureTimer = nil
 
-                if let image = self.capture.screenCapture.captureFullScreen() {
-                    self.handleCapturedImage(image)
-                } else {
-                    self.capture.endCapture(showMainWindow: self.capture.wasMainWindowVisibleBeforeCapture)
+                self.capture.captureOverlayController.hide()
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    if let image = self.capture.screenCapture.captureFullScreen() {
+                        self.handleCapturedImage(image)
+                    } else {
+                        self.capture.endCapture(showMainWindow: self.capture.wasMainWindowVisibleBeforeCapture)
+                    }
                 }
             }
         }
