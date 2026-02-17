@@ -1,4 +1,5 @@
 import SwiftUI
+import QuartzCore
 
 final class CaptureOverlayWindowController {
     private var windows: [NSWindow] = []
@@ -41,9 +42,11 @@ final class CaptureOverlayWindowController {
 
     func hide() {
         for window in windows {
-            window.orderOut(nil)
+            window.contentView = nil
+            window.close()
         }
         windows.removeAll()
+        CATransaction.flush()
         removeEscapeMonitor()
         appState = nil
     }

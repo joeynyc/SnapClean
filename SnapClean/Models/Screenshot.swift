@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import ScreenCaptureKit
 import os
 
 private let appLogger = Logger(subsystem: "com.snapclean.app", category: "app")
@@ -229,29 +230,18 @@ final class CaptureState {
     }
 
     func currentScreenCaptureAccess() async -> Bool {
-        // CGPreflightScreenCaptureAccess is unreliable on macOS 14+.
-        // Instead, check if we can read window names of other apps — macOS
-        // strips these when screen recording permission is not granted.
         if CGPreflightScreenCaptureAccess() {
             return true
         }
 
-        let selfPID = ProcessInfo.processInfo.processIdentifier
-        guard let windowList = CGWindowListCopyWindowInfo(
-            [.optionOnScreenOnly, .excludeDesktopElements],
-            kCGNullWindowID
-        ) as? [[CFString: Any]] else {
+        // On newer macOS versions preflight can be stale; ScreenCaptureKit
+        // reliably throws when Screen Recording access is missing.
+        do {
+            _ = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
+            return true
+        } catch {
             return false
         }
-
-        for window in windowList {
-            guard let pid = window[kCGWindowOwnerPID] as? Int32, pid != selfPID else { continue }
-            if let name = window[kCGWindowName] as? String, !name.isEmpty {
-                return true
-            }
-        }
-
-        return false
     }
 
     func requestScreenCaptureAccess() -> Bool {
@@ -493,12 +483,6 @@ final class AppState {
                     capture.revealMainWindowForPermissionGuidance()
                     return
                 }
-
-                let grantedAfterRequest = await capture.currentScreenCaptureAccess()
-                if !grantedAfterRequest {
-                    capture.revealMainWindowForPermissionGuidance()
-                    return
-                }
             }
 
             beginCapture(mode: mode)
@@ -627,7 +611,7 @@ final class AppState {
                 self.captureTimer = nil
 
                 self.capture.captureOverlayController.hide()
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
                     if let image = self.capture.screenCapture.captureFullScreen() {
                         self.handleCapturedImage(image)
                     } else {
