@@ -170,9 +170,8 @@ struct CaptureOverlay: View {
         switch mode {
         case .region:
             let rect = captureRect
-            appState.capture.captureOverlayController.hide()
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                let image = appState.capture.screenCapture.captureRegion(rect: rect)
+            Task { @MainActor in
+                let image = await appState.capture.screenCapture.captureRegion(rect: rect)
                 if let img = image {
                     appState.handleCapturedImage(img)
                 } else {

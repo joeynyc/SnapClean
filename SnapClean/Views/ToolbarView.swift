@@ -67,10 +67,8 @@ struct ToolPicker: View {
                 Text(appState.annotations.selectedTool.rawValue)
                     .font(.system(size: 12, weight: .medium, design: .rounded))
 
-                if #available(macOS 26, *) {
-                    Image(systemName: "chevron.down")
-                        .font(.system(size: 10, weight: .medium))
-                }
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 10, weight: .medium))
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
@@ -101,10 +99,8 @@ struct ColorPickerButton: View {
                             .stroke(Color.gray.opacity(0.3), lineWidth: 1)
                     )
 
-                if #available(macOS 26, *) {
-                    Image(systemName: "chevron.down")
-                        .font(.system(size: 10, weight: .medium))
-                }
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 10, weight: .medium))
             }
             .padding(.horizontal, 8)
             .padding(.vertical, 6)
@@ -153,10 +149,8 @@ struct LineWidthPicker: View {
                     .frame(width: 20, height: width)
                     .clipShape(.rect(cornerRadius: width / 2))
 
-                if #available(macOS 26, *) {
-                    Image(systemName: "chevron.down")
-                        .font(.system(size: 10, weight: .medium))
-                }
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 10, weight: .medium))
             }
             .padding(.horizontal, 8)
             .padding(.vertical, 6)

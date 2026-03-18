@@ -8,7 +8,7 @@ SnapClean is a native macOS screenshot app built with SwiftUI, targeting macOS 1
 
 ## Build Commands
 
-Prerequisites: Xcode 15.0+, XcodeGen (`brew install xcodegen`)
+Prerequisites: Xcode 26.0+, XcodeGen (`brew install xcodegen`)
 
 ```bash
 # Generate Xcode project from project.yml (required before first build or after changing project.yml)
@@ -53,7 +53,7 @@ There are no tests, linting, or CI configured.
 ### Services
 
 - `ScreenCaptureService` (ScreenCapture.swift) — wraps CoreGraphics APIs (`CGDisplayCreateImage`, `CGWindowListCreateImage`) for capture; also provides save-to-disk, copy-to-clipboard, and image processing (pixelate/blur via Core Image filters)
-- `HotkeyManager` (HotkeyManager.swift) — singleton that registers global keyboard shortcuts using `NSEvent.addGlobalMonitorForEvents`
+- `HotkeyManager` (HotkeyManager.swift) — singleton that registers global keyboard shortcuts using Carbon `RegisterEventHotKey`
 
 ### View Hierarchy
 

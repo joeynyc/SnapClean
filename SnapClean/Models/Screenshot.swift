@@ -1,6 +1,5 @@
 import SwiftUI
 import AppKit
-import ScreenCaptureKit
 import os
 
 private let appLogger = Logger(subsystem: "com.snapclean.app", category: "app")
@@ -210,15 +209,12 @@ final class CaptureState {
     }
 
     func refreshScreenCapturePermissionStatus() {
-        Task { @MainActor [weak self] in
-            guard let self else { return }
-            if await currentScreenCaptureAccess() {
-                screenCapturePermissionStatus = .granted
-            } else if UserDefaults.standard.bool(forKey: screenCaptureAccessPromptedKey) {
-                screenCapturePermissionStatus = .denied
-            } else {
-                screenCapturePermissionStatus = .unknown
-            }
+        if currentScreenCaptureAccess() {
+            screenCapturePermissionStatus = .granted
+        } else if UserDefaults.standard.bool(forKey: screenCaptureAccessPromptedKey) {
+            screenCapturePermissionStatus = .denied
+        } else {
+            screenCapturePermissionStatus = .unknown
         }
     }
 
@@ -229,19 +225,12 @@ final class CaptureState {
         _ = NSWorkspace.shared.open(settingsURL)
     }
 
-    func currentScreenCaptureAccess() async -> Bool {
-        if CGPreflightScreenCaptureAccess() {
-            return true
-        }
-
-        // On newer macOS versions preflight can be stale; ScreenCaptureKit
-        // reliably throws when Screen Recording access is missing.
-        do {
-            _ = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
-            return true
-        } catch {
-            return false
-        }
+    func currentScreenCaptureAccess() -> Bool {
+        // CGPreflightScreenCaptureAccess can be stale on macOS 14+, but
+        // CGWindowListCreateImage still succeeds when permission is granted.
+        // Avoid SCShareableContent — it re-triggers the system prompt even
+        // when permission is already enabled.
+        return CGPreflightScreenCaptureAccess()
     }
 
     func requestScreenCaptureAccess() -> Bool {
@@ -369,8 +358,8 @@ final class HistoryState {
         }
     }
 
-    func loadHistory(limit: Int) {
-        screenshotHistory = historyManager.loadHistory()
+    func loadHistory(limit: Int) async {
+        screenshotHistory = await historyManager.loadHistory()
         let removed = trimHistoryToLimit(limit: limit)
         historyManager.saveHistory(screenshotHistory)
         if !removed.isEmpty {
@@ -452,7 +441,9 @@ final class AppState {
         let rawLimit = UserDefaults.standard.integer(forKey: "historyLimit")
         self.historyLimit = rawLimit > 0 ? rawLimit : 50
 
-        history.loadHistory(limit: historyLimit)
+        Task { @MainActor in
+            await history.loadHistory(limit: historyLimit)
+        }
         setupNotifications()
         capture.refreshScreenCapturePermissionStatus()
     }
@@ -472,21 +463,17 @@ final class AppState {
     // MARK: - Cross-cutting Methods
 
     func startCapture(mode: CaptureMode) {
-        Task { @MainActor [weak self] in
-            guard let self else { return }
-
-            let hasAccess = await capture.currentScreenCaptureAccess()
-            if !hasAccess {
-                if !capture.requestScreenCaptureAccess() {
-                    capture.lastCaptureError = .permissionDenied
-                    appLogger.warning("Screen capture permission denied")
-                    capture.revealMainWindowForPermissionGuidance()
-                    return
-                }
+        let hasAccess = capture.currentScreenCaptureAccess()
+        if !hasAccess {
+            if !capture.requestScreenCaptureAccess() {
+                capture.lastCaptureError = .permissionDenied
+                appLogger.warning("Screen capture permission denied")
+                capture.revealMainWindowForPermissionGuidance()
+                return
             }
-
-            beginCapture(mode: mode)
         }
+
+        beginCapture(mode: mode)
     }
 
     func handleCapturedImage(_ image: NSImage) {
@@ -610,13 +597,10 @@ final class AppState {
                 self.captureTimer?.invalidate()
                 self.captureTimer = nil
 
-                self.capture.captureOverlayController.hide()
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                    if let image = self.capture.screenCapture.captureFullScreen() {
-                        self.handleCapturedImage(image)
-                    } else {
-                        self.capture.endCapture(showMainWindow: self.capture.wasMainWindowVisibleBeforeCapture)
-                    }
+                if let image = await self.capture.screenCapture.captureFullScreen() {
+                    self.handleCapturedImage(image)
+                } else {
+                    self.capture.endCapture(showMainWindow: self.capture.wasMainWindowVisibleBeforeCapture)
                 }
             }
         }
@@ -662,13 +646,18 @@ class ScreenshotHistoryManager: HistoryPersisting {
         }
     }
 
-    func loadHistory() -> [ScreenshotItem] {
-        ioQueue.sync {
-            guard let data = try? Data(contentsOf: historyFileURL),
-                  let history = try? JSONDecoder().decode([ScreenshotItem].self, from: data) else {
-                return []
+    func loadHistory() async -> [ScreenshotItem] {
+        await withCheckedContinuation { continuation in
+            ioQueue.async { [historyFileURL] in
+                guard let data = try? Data(contentsOf: historyFileURL),
+                      let history = try? JSONDecoder().decode([ScreenshotItem].self, from: data) else {
+                    continuation.resume(returning: [])
+                    return
+                }
+                continuation.resume(returning: history.filter {
+                    FileManager.default.fileExists(atPath: $0.filePath)
+                })
             }
-            return history.filter { FileManager.default.fileExists(atPath: $0.filePath) }
         }
     }
 
