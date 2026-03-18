@@ -267,7 +267,10 @@ struct HistoryThumbnailView: View {
         .buttonStyle(.plain)
         .onAppear {
             if thumbnailImage == nil, let data = item.thumbnail {
-                thumbnailImage = NSImage(data: data)
+                Task.detached(priority: .utility) {
+                    let image = NSImage(data: data)
+                    await MainActor.run { thumbnailImage = image }
+                }
             }
         }
     }

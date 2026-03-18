@@ -6,8 +6,8 @@ import CoreGraphics
 /// Abstracts screen capture operations for testability.
 /// Inject a mock conforming to this protocol in tests.
 protocol ScreenCapturing {
-    func captureRegion(rect: CGRect) -> NSImage?
-    func captureFullScreen() -> NSImage?
+    func captureRegion(rect: CGRect) async -> NSImage?
+    func captureFullScreen() async -> NSImage?
     func captureWindow(at point: CGPoint) -> NSImage?
     func captureWindowByID(_ windowID: CGWindowID, bounds: CGRect) -> NSImage?
     func getWindowList() -> [(id: CGWindowID, name: String, bounds: CGRect)]
@@ -30,7 +30,7 @@ extension ScreenCapturing {
 protocol HistoryPersisting {
     var saveDirectory: URL { get }
     func saveHistory(_ history: [ScreenshotItem])
-    func loadHistory() -> [ScreenshotItem]
+    func loadHistory() async -> [ScreenshotItem]
     func removeFiles(atPaths paths: [String])
     func isPathAllowed(_ path: String) -> Bool
 }

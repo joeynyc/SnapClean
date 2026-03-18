@@ -415,6 +415,7 @@ struct BottomToolbarView: View {
             Spacer()
 
             // Right side - Status
+            #if compiler(>=6.2)
             if #available(macOS 26, *) {
                 Text("\(appState.annotations.elements.count) annotations")
                     .font(.system(size: 12, weight: .medium, design: .rounded))
@@ -428,6 +429,14 @@ struct BottomToolbarView: View {
                     .padding(.vertical, 5)
                     .background(Capsule().fill(Color.secondary.opacity(0.15)))
             }
+            #else
+            Text("\(appState.annotations.elements.count) annotations")
+                .font(.system(size: 12, weight: .medium, design: .rounded))
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 5)
+                .background(Capsule().fill(Color.secondary.opacity(0.15)))
+            #endif
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 12)
@@ -443,18 +452,15 @@ struct AnnotationExportView: View {
     let annotations: [AnnotationElement]
 
     var body: some View {
-        ZStack {
-            Color.clear
-            Image(nsImage: image)
-                .resizable()
-                .aspectRatio(contentMode: .fit)
-
-            Canvas { context, size in
-                for element in annotations {
-                    AnnotationRenderer.draw(element, in: context)
+        Image(nsImage: image)
+            .resizable()
+            .overlay {
+                Canvas { context, size in
+                    for element in annotations {
+                        AnnotationRenderer.draw(element, in: context)
+                    }
                 }
             }
-        }
     }
 }
 

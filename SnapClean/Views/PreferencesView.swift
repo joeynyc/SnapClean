@@ -102,7 +102,8 @@ struct GeneralPreferencesView: View {
                         .font(.system(size: 13, weight: .semibold, design: .rounded))
 
                 HStack {
-                    Text("Documents/SnapClean/History")
+                    Text(appState.history.historyManager.saveDirectory.path
+                        .replacingOccurrences(of: NSHomeDirectory(), with: "~"))
                         .font(.system(size: 13, design: .rounded))
                         .padding(.horizontal, 12)
                         .padding(.vertical, 8)
