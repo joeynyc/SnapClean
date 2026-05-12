@@ -9,7 +9,7 @@ protocol ScreenCapturing {
     func captureRegion(rect: CGRect) async -> NSImage?
     func captureFullScreen() async -> NSImage?
     func captureWindowByID(_ windowID: CGWindowID) async -> NSImage?
-    func getWindowList() -> [(id: CGWindowID, name: String, bounds: CGRect)]
+    func getWindowList() async -> [(id: CGWindowID, name: String, bounds: CGRect)]
     func saveImage(_ image: NSImage, to folder: URL?) -> String?
     func copyToClipboard(_ image: NSImage)
     func openInFinder(_ path: String)

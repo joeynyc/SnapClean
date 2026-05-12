@@ -63,7 +63,7 @@ struct HistoryPanel: View {
                 }
             }
         }
-        .frame(width: 500, height: 500)
+        .frame(minWidth: 540, idealWidth: 620, minHeight: 480, idealHeight: 560)
     }
 }
 

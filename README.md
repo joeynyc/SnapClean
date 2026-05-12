@@ -4,15 +4,15 @@ A fast, native macOS screenshot tool with annotation, history, and pin-to-screen
 
 ## Features
 
-**Capture** — Region select, window pick, or full screen. Timed capture with 3/5/10s countdown. Auto-saves to `Documents/SnapClean/History` and copies to clipboard.
+**Capture** — Region select, ScreenCaptureKit-backed window pick, or full screen. Timed capture with 3/5/10s countdown. Auto-saves to `Documents/SnapClean/History` and copies to clipboard.
 
 **Annotate** — Arrows, text, shapes, lines, freehand drawing, blur, and pixelate. Full color picker, undo/redo, and live preview before saving.
 
 **Pin to Screen** — Float any screenshot as an always-on-top overlay with optional transparency.
 
-**History** — Browse and manage your last 50 screenshots. Open in Finder, copy, or delete.
+**History** — Browse and manage your last 50 screenshots in a dedicated macOS window. Open in Finder, copy, copy path, or delete.
 
-**Menu Bar** — Quick access from the menu bar without opening the main window.
+**Menu Bar** — Quick access from the menu bar, with History and About available as separate app windows.
 
 ## Keyboard Shortcuts
 
@@ -46,7 +46,10 @@ A fast, native macOS screenshot tool with annotation, history, and pin-to-screen
 ```bash
 brew install xcodegen    # one-time setup
 xcodegen generate        # generate Xcode project
+./build.sh build         # debug build
+./build.sh test          # run unit tests
 ./build.sh run           # build and launch
+./build.sh archive       # create a release archive at build/SnapClean.xcarchive
 ```
 
 ## License

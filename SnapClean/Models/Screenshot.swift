@@ -428,9 +428,6 @@ final class AppState {
     let annotations: AnnotationState
     let history: HistoryState
 
-    var showAboutWindow = false
-    var showPreferences = false
-    var showHistory = false
     var showPinWindow = false
     var pinnedImage: NSImage?
     var isTransparentBackground = false

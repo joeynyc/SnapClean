@@ -28,13 +28,6 @@ struct MainWindow: View {
             PinWindow()
                 .environment(appState)
         }
-        .sheet(isPresented: $appState.showHistory) {
-            HistoryPanel()
-                .environment(appState)
-        }
-        .sheet(isPresented: $appState.showAboutWindow) {
-            AboutView()
-        }
     }
 }
 
@@ -68,7 +61,7 @@ struct AboutView: View {
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
 
-            Text("Copyright © 2025 SnapClean. All rights reserved.")
+            Text("Copyright © 2026 SnapClean. All rights reserved.")
                 .font(.system(size: 11, design: .rounded))
                 .foregroundStyle(.tertiary)
         }
@@ -122,7 +115,7 @@ struct WelcomeView: View {
                 CaptureButton(
                     title: "Capture Window",
                     subtitle: "Click to capture a window",
-                    icon: "app.windows",
+                    icon: "macwindow",
                     keyboard: "⌘⇧F2"
                 ) {
                     appState.startCapture(mode: .window)
@@ -247,6 +240,7 @@ struct CaptureButton: View {
 
 struct RecentHistoryView: View {
     @Environment(AppState.self) var appState
+    @Environment(\.openWindow) private var openWindow
 
     var body: some View {
         VStack(spacing: 8) {
@@ -256,7 +250,7 @@ struct RecentHistoryView: View {
                     .foregroundStyle(.secondary)
                 Spacer()
                 Button("View All") {
-                    appState.showHistory = true
+                    openWindow(id: SnapCleanWindowID.history)
                 }
                 .font(.system(size: 12, weight: .medium, design: .rounded))
             }

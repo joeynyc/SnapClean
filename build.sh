@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # SnapClean Build & Run Script
-# Usage: ./build.sh [build|run|clean]
+# Usage: ./build.sh [build|run|test|archive|clean]
 
 set -e
 
@@ -27,6 +27,18 @@ case "${1:-build}" in
         echo "✅ App launched!"
         ;;
 
+    test)
+        echo "🧪 Testing SnapClean..."
+        xcodebuild -project SnapClean.xcodeproj -scheme SnapClean -configuration Debug test
+        echo "✅ Tests passed!"
+        ;;
+
+    archive)
+        echo "📦 Archiving SnapClean..."
+        xcodebuild -project SnapClean.xcodeproj -scheme SnapClean -configuration Release archive -archivePath "$PROJECT_DIR/build/SnapClean.xcarchive"
+        echo "✅ Archive created at build/SnapClean.xcarchive"
+        ;;
+
     clean)
         echo "🧹 Cleaning build artifacts..."
         xcodebuild -project SnapClean.xcodeproj -scheme SnapClean clean
@@ -34,7 +46,7 @@ case "${1:-build}" in
         ;;
 
     *)
-        echo "Usage: ./build.sh [build|run|clean]"
+        echo "Usage: ./build.sh [build|run|test|archive|clean]"
         exit 1
         ;;
 esac

@@ -12,6 +12,7 @@
 		2720026A3EEA64C1DF36DB48 /* PinWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F493BBD51ECAD89390B1AA0 /* PinWindow.swift */; };
 		36B32C6FF1C2CF47D83D2C16 /* ScreenCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B1DC995657B34A68DF98B81 /* ScreenCapture.swift */; };
 		3CAAFBF51B6F20508D15624E /* ServiceProtocols.swift in Sources */ = {isa = PBXBuildFile; fileRef = B485F2380FBA7A50DC0EEAEE /* ServiceProtocols.swift */; };
+		3D9AF1838B7AB0D6FDFA2D63 /* HistoryStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 883E6634E847B2B21D4C26F4 /* HistoryStateTests.swift */; };
 		46D564ED22B47B6351F949B7 /* AnnotationCanvas.swift in Sources */ = {isa = PBXBuildFile; fileRef = C67C1A5D30C7CA6660767053 /* AnnotationCanvas.swift */; };
 		52CF38E7784287B81309AF27 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = CBA0741AA44B70A5CFCAF245 /* AppDelegate.swift */; };
 		68385B1F447DC6D404284CB9 /* CaptureOverlayWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B70572D94F5FA81C8B2B03F9 /* CaptureOverlayWindowController.swift */; };
@@ -23,8 +24,19 @@
 		E6E77254178CEB619957C998 /* CaptureOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD8FF97CD0D5FBBD85368F93 /* CaptureOverlay.swift */; };
 		F473CC85E14774300AD137B9 /* HistoryPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C674872497C779C2068C35C /* HistoryPanel.swift */; };
 		FA7744627DDEDEFABA7E2123 /* MenuBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE91F7D29108F1A99F0D61BB /* MenuBarView.swift */; };
+		FCECB2EA4F10A6E72FB1EDBE /* AnnotationModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEA38B5D304DCAEF4266DF9D /* AnnotationModelTests.swift */; };
 		FF4782B66DD61FCF11C114B4 /* PreferencesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7CFEA7CD06D3AF6420DB8016 /* PreferencesView.swift */; };
 /* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		6B2E5FB8EA865D9929B60833 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = DEA1D58238F28B770392D8DA /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = C6E45398B58E2782831ADB2D;
+			remoteInfo = SnapClean;
+		};
+/* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
 		11CEC64E05A9A064B0B9483D /* SnapClean.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SnapClean.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -39,11 +51,14 @@
 		6F493BBD51ECAD89390B1AA0 /* PinWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PinWindow.swift; sourceTree = "<group>"; };
 		7CFEA7CD06D3AF6420DB8016 /* PreferencesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferencesView.swift; sourceTree = "<group>"; };
 		822CFEF9F44D7343D9CFBBEC /* SnapCleanApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnapCleanApp.swift; sourceTree = "<group>"; };
+		883E6634E847B2B21D4C26F4 /* HistoryStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryStateTests.swift; sourceTree = "<group>"; };
+		AEA38B5D304DCAEF4266DF9D /* AnnotationModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnotationModelTests.swift; sourceTree = "<group>"; };
 		B485F2380FBA7A50DC0EEAEE /* ServiceProtocols.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServiceProtocols.swift; sourceTree = "<group>"; };
 		B70572D94F5FA81C8B2B03F9 /* CaptureOverlayWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureOverlayWindowController.swift; sourceTree = "<group>"; };
 		C67C1A5D30C7CA6660767053 /* AnnotationCanvas.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnotationCanvas.swift; sourceTree = "<group>"; };
 		CBA0741AA44B70A5CFCAF245 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		DD8FF97CD0D5FBBD85368F93 /* CaptureOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureOverlay.swift; sourceTree = "<group>"; };
+		EC8EF315F37ACE2B81015C3A /* SnapCleanTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SnapCleanTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		EE91F7D29108F1A99F0D61BB /* MenuBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarView.swift; sourceTree = "<group>"; };
 		F6AED29B025D3EE7B5532D97 /* MainWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainWindow.swift; sourceTree = "<group>"; };
 		FDAD5CCBC715225FBC77C69F /* HotkeyManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotkeyManager.swift; sourceTree = "<group>"; };
@@ -104,6 +119,7 @@
 			isa = PBXGroup;
 			children = (
 				28355B61CCC64BF809DF4FEB /* SnapClean */,
+				93F41B5E75E0A968BF56AFAB /* SnapCleanTests */,
 				E348B3FA11CBE09FDB0DB483 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -114,6 +130,15 @@
 				65B71A1014464C8CD6A06516 /* Screenshot.swift */,
 			);
 			path = Models;
+			sourceTree = "<group>";
+		};
+		93F41B5E75E0A968BF56AFAB /* SnapCleanTests */ = {
+			isa = PBXGroup;
+			children = (
+				AEA38B5D304DCAEF4266DF9D /* AnnotationModelTests.swift */,
+				883E6634E847B2B21D4C26F4 /* HistoryStateTests.swift */,
+			);
+			path = SnapCleanTests;
 			sourceTree = "<group>";
 		};
 		9732FF4B9B654C6FC7466DBC /* Windows */ = {
@@ -136,6 +161,7 @@
 			isa = PBXGroup;
 			children = (
 				11CEC64E05A9A064B0B9483D /* SnapClean.app */,
+				EC8EF315F37ACE2B81015C3A /* SnapCleanTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -143,6 +169,24 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		7DC683A152E24955DE1AE9BB /* SnapCleanTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 086ADF5AB9BE1C58ADB09BC4 /* Build configuration list for PBXNativeTarget "SnapCleanTests" */;
+			buildPhases = (
+				B515793074831ABDC69EDE0C /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				5390B8202EB2E68CA6C215A2 /* PBXTargetDependency */,
+			);
+			name = SnapCleanTests;
+			packageProductDependencies = (
+			);
+			productName = SnapCleanTests;
+			productReference = EC8EF315F37ACE2B81015C3A /* SnapCleanTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 		C6E45398B58E2782831ADB2D /* SnapClean */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 1040071522B1020630DDA388 /* Build configuration list for PBXNativeTarget "SnapClean" */;
@@ -170,6 +214,10 @@
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 2600;
 				TargetAttributes = {
+					7DC683A152E24955DE1AE9BB = {
+						DevelopmentTeam = "";
+						ProvisioningStyle = Automatic;
+					};
 					C6E45398B58E2782831ADB2D = {
 						DevelopmentTeam = "";
 						ProvisioningStyle = Automatic;
@@ -191,6 +239,7 @@
 			projectRoot = "";
 			targets = (
 				C6E45398B58E2782831ADB2D /* SnapClean */,
+				7DC683A152E24955DE1AE9BB /* SnapCleanTests */,
 			);
 		};
 /* End PBXProject section */
@@ -207,6 +256,15 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		B515793074831ABDC69EDE0C /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				FCECB2EA4F10A6E72FB1EDBE /* AnnotationModelTests.swift in Sources */,
+				3D9AF1838B7AB0D6FDFA2D63 /* HistoryStateTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		D58778E4F416FBF870902352 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -231,6 +289,14 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		5390B8202EB2E68CA6C215A2 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = C6E45398B58E2782831ADB2D /* SnapClean */;
+			targetProxy = 6B2E5FB8EA865D9929B60833 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		17CAF05EB31DA4C5CEF40DDF /* Release */ = {
@@ -270,7 +336,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = "";
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -350,7 +416,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				DEVELOPMENT_TEAM = "";
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -400,9 +466,54 @@
 			};
 			name = Release;
 		};
+		A63628D9ADE689103521A1D1 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.snapclean.app.tests;
+				SDKROOT = macosx;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/SnapClean.app/Contents/MacOS/SnapClean";
+			};
+			name = Debug;
+		};
+		AC1375CC01F47FF83EB74669 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.snapclean.app.tests;
+				SDKROOT = macosx;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/SnapClean.app/Contents/MacOS/SnapClean";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		086ADF5AB9BE1C58ADB09BC4 /* Build configuration list for PBXNativeTarget "SnapCleanTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A63628D9ADE689103521A1D1 /* Debug */,
+				AC1375CC01F47FF83EB74669 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
 		1040071522B1020630DDA388 /* Build configuration list for PBXNativeTarget "SnapClean" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (

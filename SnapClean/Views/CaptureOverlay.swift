@@ -125,8 +125,9 @@ struct CaptureOverlay: View {
                 }
             }
             .onAppear {
-                // Fetch window list once when overlay appears (avoid expensive system calls on every render)
-                windowList = appState.capture.screenCapture.getWindowList()
+                Task {
+                    windowList = await appState.capture.screenCapture.getWindowList()
+                }
             }
         }
     }

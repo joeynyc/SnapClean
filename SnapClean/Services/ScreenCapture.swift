@@ -152,29 +152,33 @@ class ScreenCaptureService: ScreenCapturing {
         return max(CGFloat(display.width) / display.frame.width, 1.0)
     }
 
-    func getWindowList() -> [(id: CGWindowID, name: String, bounds: CGRect)] {
-        let windowList = CGWindowListCopyWindowInfo(.optionOnScreenOnly, CGWindowID(0))
-        guard let windowList = windowList else { return [] }
+    func getWindowList() async -> [(id: CGWindowID, name: String, bounds: CGRect)] {
+        do {
+            let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
+            return content.windows.compactMap { window in
+                guard window.owningApplication?.processID != selfPID,
+                      window.frame.width > 0,
+                      window.frame.height > 0 else {
+                    return nil
+                }
 
-        let windows = windowList as? [[String: Any]] ?? []
-        var result: [(id: CGWindowID, name: String, bounds: CGRect)] = []
+                let appName = window.owningApplication?.applicationName
+                let title = window.title?.trimmingCharacters(in: .whitespacesAndNewlines)
+                let name = [appName, title].compactMap { value in
+                    guard let value, !value.isEmpty else { return nil }
+                    return value
+                }.joined(separator: " - ")
 
-        for window in windows {
-            if let bounds = window[kCGWindowBounds as String] as? [String: Any],
-               let windowID = window[kCGWindowNumber as String] as? Int,
-               let name = window[kCGWindowName as String] as? String {
-
-                let rect = CGRect(
-                    x: bounds["X"] as? CGFloat ?? 0,
-                    y: bounds["Y"] as? CGFloat ?? 0,
-                    width: bounds["Width"] as? CGFloat ?? 0,
-                    height: bounds["Height"] as? CGFloat ?? 0
+                return (
+                    id: window.windowID,
+                    name: name.isEmpty ? "Window" : name,
+                    bounds: window.frame
                 )
-                result.append((id: CGWindowID(windowID), name: name, bounds: rect))
             }
+        } catch {
+            captureLogger.error("Failed to load ScreenCaptureKit window list: \(error.localizedDescription, privacy: .private)")
+            return []
         }
-
-        return result
     }
 
     func saveImage(_ image: NSImage, to folder: URL? = nil) -> String? {

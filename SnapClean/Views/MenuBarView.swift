@@ -2,6 +2,7 @@ import SwiftUI
 
 struct MenuBarView: View {
     @Environment(AppState.self) var appState
+    @Environment(\.openWindow) private var openWindow
 
     var body: some View {
         @Bindable var appState = appState
@@ -46,7 +47,7 @@ struct MenuBarView: View {
             MenuButton(
                 title: "Capture Window",
                 subtitle: "Click a window",
-                icon: "app.windows",
+                icon: "macwindow",
                 keyboard: "⌘⇧F2"
             ) {
                 appState.startCapture(mode: .window)
@@ -65,9 +66,7 @@ struct MenuBarView: View {
 
             // History
             Button {
-                appState.capture.mainWindow?.makeKeyAndOrderFront(nil)
-                NSApp.activate(ignoringOtherApps: true)
-                appState.showHistory = true
+                openWindow(id: SnapCleanWindowID.history)
             } label: {
                 HStack {
                     Image(systemName: "clock.arrow.circlepath")
