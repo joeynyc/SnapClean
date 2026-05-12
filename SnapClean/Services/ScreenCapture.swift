@@ -47,39 +47,20 @@ class ScreenCaptureService: ScreenCapturing {
         }
     }
 
-    func captureWindow(at point: CGPoint) -> NSImage? {
-        let windowList = CGWindowListCopyWindowInfo(.optionOnScreenOnly, CGWindowID(0))
-        guard let windowList = windowList else { return nil }
-
-        let windows = windowList as? [[String: Any]] ?? []
-        for window in windows {
-            if let bounds = window[kCGWindowBounds as String] as? [String: Any],
-               let windowID = window[kCGWindowNumber as String] as? Int {
-                let rect = CGRect(
-                    x: bounds["X"] as? CGFloat ?? 0,
-                    y: bounds["Y"] as? CGFloat ?? 0,
-                    width: bounds["Width"] as? CGFloat ?? 0,
-                    height: bounds["Height"] as? CGFloat ?? 0
-                )
-                if rect.contains(point) {
-                    if let cgImage = CGWindowListCreateImage(rect, .optionOnScreenOnly, CGWindowID(windowID), []) {
-                        return NSImage(cgImage: cgImage, size: rect.size)
-                    }
-                }
+    func captureWindowByID(_ windowID: CGWindowID) async -> NSImage? {
+        do {
+            let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
+            guard let window = content.windows.first(where: { $0.windowID == windowID }) else {
+                captureLogger.error("No ScreenCaptureKit window found for ID \(windowID, privacy: .public)")
+                return nil
             }
-        }
-        return nil
-    }
 
-    func captureWindowByID(_ windowID: CGWindowID, bounds: CGRect) -> NSImage? {
-        let cgImage = CGWindowListCreateImage(
-            bounds,
-            .optionIncludingWindow,
-            windowID,
-            [.boundsIgnoreFraming]
-        )
-        guard let cgImage else { return nil }
-        return NSImage(cgImage: cgImage, size: bounds.size)
+            let capture = try await captureWindowWithScreenCaptureKit(window, displays: content.displays)
+            return NSImage(cgImage: capture.image, size: capture.size)
+        } catch {
+            captureLogger.error("Window capture failed: \(error.localizedDescription, privacy: .private)")
+            return nil
+        }
     }
 
     private func captureRectWithScreenCaptureKit(_ rect: CGRect) async throws -> CGImage? {

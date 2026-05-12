@@ -47,7 +47,7 @@ struct AnnotationCanvasView: View {
                         }
 
                         // Current shape preview
-                        if isDrawing && (appState.annotations.selectedTool == .arrow || appState.annotations.selectedTool == .rectangle || appState.annotations.selectedTool == .oval || appState.annotations.selectedTool == .line) {
+                        if isDrawing && appState.annotations.selectedTool.usesRectangularDrag {
                             AnnotationRenderer(
                                 tool: appState.annotations.selectedTool,
                                 startPoint: currentStartPoint,
@@ -167,6 +167,24 @@ struct AnnotationCanvasView: View {
                         case .line:
                             element = AnnotationElement.normalized(
                                 tool: .line,
+                                color: appState.annotations.selectedColor,
+                                lineWidth: appState.annotations.lineWidth,
+                                startPoint: currentStartPoint,
+                                endPoint: value.location,
+                                in: imageFrame
+                            )
+                        case .blur:
+                            element = AnnotationElement.normalized(
+                                tool: .blur,
+                                color: appState.annotations.selectedColor,
+                                lineWidth: appState.annotations.lineWidth,
+                                startPoint: currentStartPoint,
+                                endPoint: value.location,
+                                in: imageFrame
+                            )
+                        case .pixelate:
+                            element = AnnotationElement.normalized(
+                                tool: .pixelate,
                                 color: appState.annotations.selectedColor,
                                 lineWidth: appState.annotations.lineWidth,
                                 startPoint: currentStartPoint,
@@ -347,8 +365,28 @@ struct AnnotationRenderer: View {
             }
 
         case .blur, .pixelate:
-            break
+            drawEffectOverlay(element, in: context)
         }
+    }
+
+    private static func drawEffectOverlay(_ element: AnnotationElement, in context: GraphicsContext) {
+        guard let rect = element.effectRect, rect.width > 0, rect.height > 0 else { return }
+
+        let overlayColor: Color = element.tool == .blur ? .cyan : .purple
+        context.fill(
+            Path(rect),
+            with: .color(overlayColor.opacity(0.14))
+        )
+        context.stroke(
+            Path(rect),
+            with: .color(overlayColor.opacity(0.9)),
+            style: StrokeStyle(
+                lineWidth: max(element.lineWidth, 2),
+                lineCap: .round,
+                lineJoin: .round,
+                dash: [8, 5]
+            )
+        )
     }
 
     private static func drawArrow(context: GraphicsContext, start: CGPoint, end: CGPoint, color: Color, lineWidth: CGFloat) {

@@ -8,8 +8,7 @@ import CoreGraphics
 protocol ScreenCapturing {
     func captureRegion(rect: CGRect) async -> NSImage?
     func captureFullScreen() async -> NSImage?
-    func captureWindow(at point: CGPoint) -> NSImage?
-    func captureWindowByID(_ windowID: CGWindowID, bounds: CGRect) -> NSImage?
+    func captureWindowByID(_ windowID: CGWindowID) async -> NSImage?
     func getWindowList() -> [(id: CGWindowID, name: String, bounds: CGRect)]
     func saveImage(_ image: NSImage, to folder: URL?) -> String?
     func copyToClipboard(_ image: NSImage)

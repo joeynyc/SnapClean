@@ -38,7 +38,7 @@ struct MenuBarView: View {
                 title: "Capture Region",
                 subtitle: "Draw a selection",
                 icon: "square.dashed",
-                keyboard: "F1"
+                keyboard: "⌘⇧F1"
             ) {
                 appState.startCapture(mode: .region)
             }
@@ -47,7 +47,7 @@ struct MenuBarView: View {
                 title: "Capture Window",
                 subtitle: "Click a window",
                 icon: "app.windows",
-                keyboard: "F2"
+                keyboard: "⌘⇧F2"
             ) {
                 appState.startCapture(mode: .window)
             }
@@ -56,7 +56,7 @@ struct MenuBarView: View {
                 title: "Capture Screen",
                 subtitle: "Full screen",
                 icon: "desktopcomputer",
-                keyboard: "F3"
+                keyboard: "⌘⇧F3"
             ) {
                 appState.startCapture(mode: .screen)
             }
@@ -65,6 +65,8 @@ struct MenuBarView: View {
 
             // History
             Button {
+                appState.capture.mainWindow?.makeKeyAndOrderFront(nil)
+                NSApp.activate(ignoringOtherApps: true)
                 appState.showHistory = true
             } label: {
                 HStack {
@@ -131,10 +133,6 @@ struct MenuBarView: View {
         .frame(width: 250)
         .onAppear {
             appState.capture.refreshScreenCapturePermissionStatus()
-        }
-        .sheet(isPresented: $appState.showHistory) {
-            HistoryPanel()
-                .environment(appState)
         }
     }
 }

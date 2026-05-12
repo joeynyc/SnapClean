@@ -28,6 +28,52 @@ struct MainWindow: View {
             PinWindow()
                 .environment(appState)
         }
+        .sheet(isPresented: $appState.showHistory) {
+            HistoryPanel()
+                .environment(appState)
+        }
+        .sheet(isPresented: $appState.showAboutWindow) {
+            AboutView()
+        }
+    }
+}
+
+struct AboutView: View {
+    private var versionText: String {
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0"
+        let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "1"
+        return "Version \(version) (\(build))"
+    }
+
+    var body: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "camera.fill")
+                .font(.system(size: 48))
+                .foregroundStyle(.linearGradient(
+                    colors: [.blue, .purple],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                ))
+
+            VStack(spacing: 4) {
+                Text("SnapClean")
+                    .font(.system(size: 24, weight: .bold, design: .rounded))
+                Text(versionText)
+                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                    .foregroundStyle(.secondary)
+            }
+
+            Text("Fast native screenshots with annotation, history, and pinning.")
+                .font(.system(size: 13, design: .rounded))
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+
+            Text("Copyright © 2025 SnapClean. All rights reserved.")
+                .font(.system(size: 11, design: .rounded))
+                .foregroundStyle(.tertiary)
+        }
+        .padding(32)
+        .frame(width: 360)
     }
 }
 

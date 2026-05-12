@@ -48,7 +48,20 @@ enum AnnotationTool: String, CaseIterable, Identifiable {
 
     // Tools currently implemented in the canvas interaction/rendering pipeline.
     static var selectableTools: [AnnotationTool] {
-        [.arrow, .text, .rectangle, .oval, .line, .pencil]
+        [.arrow, .text, .rectangle, .oval, .line, .pencil, .blur, .pixelate]
+    }
+
+    var isEffect: Bool {
+        self == .blur || self == .pixelate
+    }
+
+    var usesRectangularDrag: Bool {
+        switch self {
+        case .arrow, .rectangle, .oval, .line, .blur, .pixelate:
+            return true
+        case .text, .pencil:
+            return false
+        }
     }
 
     var icon: String {
@@ -104,6 +117,27 @@ struct AnnotationElement: Identifiable, Equatable {
 }
 
 extension AnnotationElement {
+    var effectRect: CGRect? {
+        guard tool.isEffect, let startPoint, let endPoint else { return nil }
+        return CGRect(
+            x: min(startPoint.x, endPoint.x),
+            y: min(startPoint.y, endPoint.y),
+            width: abs(endPoint.x - startPoint.x),
+            height: abs(endPoint.y - startPoint.y)
+        )
+    }
+
+    var effectAmount: CGFloat {
+        switch tool {
+        case .blur:
+            return max(lineWidth * 2, 6)
+        case .pixelate:
+            return max(lineWidth * 4, 10)
+        default:
+            return lineWidth
+        }
+    }
+
     static func normalized(
         tool: AnnotationTool,
         points: [CGPoint] = [],
@@ -226,10 +260,8 @@ final class CaptureState {
     }
 
     func currentScreenCaptureAccess() -> Bool {
-        // CGPreflightScreenCaptureAccess can be stale on macOS 14+, but
-        // CGWindowListCreateImage still succeeds when permission is granted.
-        // Avoid SCShareableContent — it re-triggers the system prompt even
-        // when permission is already enabled.
+        // Avoid SCShareableContent here because it can re-trigger the system
+        // prompt even when permission is already enabled.
         return CGPreflightScreenCaptureAccess()
     }
 
@@ -550,12 +582,32 @@ final class AppState {
         let exportRect = CGRect(origin: .zero, size: exportSize)
         let scaledAnnotations = annotations.elements.map { $0.denormalized(in: exportRect) }
 
-        let content = AnnotationExportView(image: image, annotations: scaledAnnotations)
+        let processedImage = applyImageEffects(to: image, annotations: scaledAnnotations)
+        let visibleAnnotations = scaledAnnotations.filter { !$0.tool.isEffect }
+
+        let content = AnnotationExportView(image: processedImage, annotations: visibleAnnotations)
             .frame(width: exportSize.width, height: exportSize.height)
 
         let renderer = ImageRenderer(content: content)
         renderer.scale = imageBackingScale(for: image)
         return renderer.nsImage
+    }
+
+    private func applyImageEffects(to image: NSImage, annotations: [AnnotationElement]) -> NSImage {
+        annotations.reduce(image) { currentImage, element in
+            guard let effectRect = element.effectRect, effectRect.width > 0, effectRect.height > 0 else {
+                return currentImage
+            }
+
+            switch element.tool {
+            case .blur:
+                return currentImage.blur(amount: element.effectAmount, rect: effectRect) ?? currentImage
+            case .pixelate:
+                return currentImage.pixelate(amount: element.effectAmount, rect: effectRect) ?? currentImage
+            default:
+                return currentImage
+            }
+        }
     }
 
     private func imageBackingScale(for image: NSImage) -> CGFloat {

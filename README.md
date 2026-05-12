@@ -18,13 +18,22 @@ A fast, native macOS screenshot tool with annotation, history, and pin-to-screen
 
 | Shortcut | Action |
 |----------|--------|
-| F1 | Capture Region |
-| F2 | Capture Window |
-| F3 | Capture Screen |
+| Cmd+Shift+F1 | Capture Region |
+| Cmd+Shift+F2 | Capture Window |
+| Cmd+Shift+F3 | Capture Screen |
 | Cmd+Z | Undo |
 | Cmd+Shift+Z | Redo |
 | Cmd+S | Save |
 | Cmd+C | Copy |
+
+## Manual QA Checklist
+
+- Region capture saves, previews, copies when enabled, and records history.
+- Window capture highlights windows and captures the selected window.
+- Full-screen capture honors the configured countdown.
+- History opens from the main window and menu bar, and supports copy, copy path, show in Finder, and delete.
+- Annotation tools save, copy, pin, undo, and redo correctly, including blur and pixelate.
+- About opens from the app menu and shows the current version/build.
 
 ## Requirements
 

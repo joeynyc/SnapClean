@@ -186,8 +186,13 @@ struct CaptureOverlay: View {
     }
 
     private func performWindowCapture(window: (id: CGWindowID, name: String, bounds: CGRect)) {
-        if let image = appState.capture.screenCapture.captureWindowByID(window.id, bounds: window.bounds) {
-            appState.handleCapturedImage(image)
+        Task { @MainActor in
+            let image = await appState.capture.screenCapture.captureWindowByID(window.id)
+            if let image {
+                appState.handleCapturedImage(image)
+            } else {
+                appState.endCaptureRestoringWindow()
+            }
         }
     }
 }
