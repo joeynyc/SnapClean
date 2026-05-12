@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import ScreenCaptureKit
 import os
 
 private let appLogger = Logger(subsystem: "com.snapclean.app", category: "app")
@@ -30,6 +31,7 @@ enum CaptureError: LocalizedError {
 
 enum ScreenCapturePermissionStatus {
     case unknown
+    case checking
     case granted
     case denied
 }
@@ -245,10 +247,34 @@ final class CaptureState {
     func refreshScreenCapturePermissionStatus() {
         if currentScreenCaptureAccess() {
             screenCapturePermissionStatus = .granted
-        } else if UserDefaults.standard.bool(forKey: screenCaptureAccessPromptedKey) {
-            screenCapturePermissionStatus = .denied
-        } else {
+            lastCaptureError = nil
+            return
+        }
+
+        guard UserDefaults.standard.bool(forKey: screenCaptureAccessPromptedKey) else {
             screenCapturePermissionStatus = .unknown
+            return
+        }
+
+        screenCapturePermissionStatus = .checking
+        Task { @MainActor in
+            let hasAccess = await reconcileScreenCaptureAccessWithScreenCaptureKit()
+            if !Task.isCancelled && !hasAccess {
+                screenCapturePermissionStatus = .denied
+            }
+        }
+    }
+
+    func recheckScreenCapturePermissionStatus() {
+        screenCapturePermissionStatus = .checking
+        Task { @MainActor in
+            if await hasUsableScreenCaptureAccess() {
+                return
+            }
+
+            screenCapturePermissionStatus = UserDefaults.standard.bool(forKey: screenCaptureAccessPromptedKey)
+                ? .denied
+                : .unknown
         }
     }
 
@@ -260,15 +286,47 @@ final class CaptureState {
     }
 
     func currentScreenCaptureAccess() -> Bool {
-        // Avoid SCShareableContent here because it can re-trigger the system
-        // prompt even when permission is already enabled.
         return CGPreflightScreenCaptureAccess()
+    }
+
+    func hasUsableScreenCaptureAccess() async -> Bool {
+        if currentScreenCaptureAccess() {
+            screenCapturePermissionStatus = .granted
+            lastCaptureError = nil
+            return true
+        }
+
+        if UserDefaults.standard.bool(forKey: screenCaptureAccessPromptedKey) {
+            screenCapturePermissionStatus = .checking
+        }
+        return await reconcileScreenCaptureAccessWithScreenCaptureKit()
+    }
+
+    private func reconcileScreenCaptureAccessWithScreenCaptureKit() async -> Bool {
+        do {
+            let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
+            let hasUsableContent = !content.displays.isEmpty
+            if hasUsableContent {
+                screenCapturePermissionStatus = .granted
+                lastCaptureError = nil
+            }
+            return hasUsableContent
+        } catch {
+            appLogger.error("ScreenCaptureKit permission check failed: \(error.localizedDescription, privacy: .private)")
+            if UserDefaults.standard.bool(forKey: screenCaptureAccessPromptedKey) {
+                screenCapturePermissionStatus = .denied
+            }
+            return false
+        }
     }
 
     func requestScreenCaptureAccess() -> Bool {
         UserDefaults.standard.set(true, forKey: screenCaptureAccessPromptedKey)
         let granted = CGRequestScreenCaptureAccess()
         screenCapturePermissionStatus = granted ? .granted : .denied
+        if granted {
+            lastCaptureError = nil
+        }
         return granted
     }
 
@@ -492,14 +550,22 @@ final class AppState {
     // MARK: - Cross-cutting Methods
 
     func startCapture(mode: CaptureMode) {
-        let hasAccess = capture.currentScreenCaptureAccess()
-        if !hasAccess {
-            if !capture.requestScreenCaptureAccess() {
-                capture.lastCaptureError = .permissionDenied
-                appLogger.warning("Screen capture permission denied")
-                capture.revealMainWindowForPermissionGuidance()
-                return
-            }
+        Task { @MainActor in
+            await startCaptureAfterPermissionCheck(mode: mode)
+        }
+    }
+
+    private func startCaptureAfterPermissionCheck(mode: CaptureMode) async {
+        if await capture.hasUsableScreenCaptureAccess() {
+            beginCapture(mode: mode)
+            return
+        }
+
+        if !capture.requestScreenCaptureAccess() {
+            capture.lastCaptureError = .permissionDenied
+            appLogger.warning("Screen capture permission denied")
+            capture.revealMainWindowForPermissionGuidance()
+            return
         }
 
         beginCapture(mode: mode)

@@ -49,13 +49,18 @@ class ScreenCaptureService: ScreenCapturing {
 
     func captureWindowByID(_ windowID: CGWindowID) async -> NSImage? {
         do {
-            let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
+            let content = try await SCShareableContent.excludingDesktopWindows(true, onScreenWindowsOnly: true)
             guard let window = content.windows.first(where: { $0.windowID == windowID }) else {
                 captureLogger.error("No ScreenCaptureKit window found for ID \(windowID, privacy: .public)")
                 return nil
             }
 
             let capture = try await captureWindowWithScreenCaptureKit(window, displays: content.displays)
+            if capture.image.isLikelyBlank {
+                captureLogger.error("Desktop-independent window capture returned a blank image; falling back to window frame capture")
+                guard let fallbackImage = try await captureRectWithScreenCaptureKit(window.frame) else { return nil }
+                return NSImage(cgImage: fallbackImage, size: window.frame.size)
+            }
             return NSImage(cgImage: capture.image, size: capture.size)
         } catch {
             captureLogger.error("Window capture failed: \(error.localizedDescription, privacy: .private)")
@@ -74,9 +79,22 @@ class ScreenCaptureService: ScreenCapturing {
         // Exclude our own app so the capture overlay doesn't appear in screenshots
         let selfApps = content.applications.filter { $0.processID == selfPID }
 
-        let composite = NSImage(size: targetRect.size)
-        composite.lockFocus()
-        defer { composite.unlockFocus() }
+        let outputScale = displays.map(displayScale(for:)).max() ?? 1.0
+        let outputWidth = max(Int((targetRect.width * outputScale).rounded()), 1)
+        let outputHeight = max(Int((targetRect.height * outputScale).rounded()), 1)
+        guard let colorSpace = CGColorSpace(name: CGColorSpace.sRGB),
+              let context = CGContext(
+                data: nil,
+                width: outputWidth,
+                height: outputHeight,
+                bitsPerComponent: 8,
+                bytesPerRow: 0,
+                space: colorSpace,
+                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+              ) else {
+            return nil
+        }
+        context.interpolationQuality = .high
 
         var drewAnySlice = false
 
@@ -107,19 +125,18 @@ class ScreenCaptureService: ScreenCapturing {
                 configuration: configuration
             )
 
-            let renderedSlice = NSImage(cgImage: image, size: sliceRect.size)
             let destination = CGRect(
-                x: sliceRect.minX - targetRect.minX,
-                y: sliceRect.minY - targetRect.minY,
-                width: sliceRect.width,
-                height: sliceRect.height
+                x: (sliceRect.minX - targetRect.minX) * outputScale,
+                y: (sliceRect.minY - targetRect.minY) * outputScale,
+                width: sliceRect.width * outputScale,
+                height: sliceRect.height * outputScale
             )
-            renderedSlice.draw(in: destination)
+            context.draw(image, in: destination)
             drewAnySlice = true
         }
 
         guard drewAnySlice else { return nil }
-        return composite.cgImage(forProposedRect: nil, context: nil, hints: nil)
+        return context.makeImage()
     }
 
     private func captureWindowWithScreenCaptureKit(
@@ -154,9 +171,10 @@ class ScreenCaptureService: ScreenCapturing {
 
     func getWindowList() async -> [(id: CGWindowID, name: String, bounds: CGRect)] {
         do {
-            let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
+            let content = try await SCShareableContent.excludingDesktopWindows(true, onScreenWindowsOnly: true)
             return content.windows.compactMap { window in
                 guard window.owningApplication?.processID != selfPID,
+                      window.owningApplication != nil,
                       window.frame.width > 0,
                       window.frame.height > 0 else {
                     return nil
@@ -215,6 +233,49 @@ class ScreenCaptureService: ScreenCapturing {
 
     func openInFinder(_ path: String) {
         NSWorkspace.shared.selectFile(path, inFileViewerRootedAtPath: "")
+    }
+}
+
+private extension CGImage {
+    var isLikelyBlank: Bool {
+        let sampleWidth = min(width, 96)
+        let sampleHeight = min(height, 96)
+        guard sampleWidth > 0, sampleHeight > 0,
+              let colorSpace = CGColorSpace(name: CGColorSpace.sRGB) else {
+            return true
+        }
+
+        let bytesPerPixel = 4
+        let bytesPerRow = sampleWidth * bytesPerPixel
+        var pixels = [UInt8](repeating: 0, count: sampleHeight * bytesPerRow)
+        guard let context = CGContext(
+            data: &pixels,
+            width: sampleWidth,
+            height: sampleHeight,
+            bitsPerComponent: 8,
+            bytesPerRow: bytesPerRow,
+            space: colorSpace,
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else {
+            return true
+        }
+
+        context.interpolationQuality = .none
+        context.draw(self, in: CGRect(x: 0, y: 0, width: sampleWidth, height: sampleHeight))
+
+        var hasNonBlackPixel = false
+        for index in stride(from: 0, to: pixels.count, by: bytesPerPixel) {
+            let red = pixels[index]
+            let green = pixels[index + 1]
+            let blue = pixels[index + 2]
+            let alpha = pixels[index + 3]
+            if alpha > 0 && (red > 4 || green > 4 || blue > 4) {
+                hasNonBlackPixel = true
+                break
+            }
+        }
+
+        return !hasNonBlackPixel
     }
 }
 

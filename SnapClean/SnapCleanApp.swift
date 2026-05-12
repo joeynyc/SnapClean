@@ -62,6 +62,6 @@ struct SnapCleanApp: App {
         WindowGroup("About SnapClean", id: SnapCleanWindowID.about) {
             AboutView()
         }
-        .defaultSize(width: 360, height: 260)
+        .defaultSize(width: 420, height: 300)
     }
 }

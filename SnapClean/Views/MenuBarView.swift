@@ -29,7 +29,7 @@ struct MenuBarView: View {
 
             Divider()
 
-            if appState.capture.screenCapturePermissionStatus == .denied {
+            if appState.capture.screenCapturePermissionStatus != .granted {
                 MenuBarScreenCapturePermissionNotice()
                 Divider()
             }
@@ -139,20 +139,61 @@ struct MenuBarView: View {
 struct MenuBarScreenCapturePermissionNotice: View {
     @Environment(AppState.self) var appState
 
+    private var title: String {
+        switch appState.capture.screenCapturePermissionStatus {
+        case .checking:
+            return "Checking Screen Recording"
+        case .unknown:
+            return "Screen Recording Needed"
+        case .denied:
+            return "Screen Recording Blocked"
+        case .granted:
+            return "Screen Recording On"
+        }
+    }
+
+    private var message: String {
+        switch appState.capture.screenCapturePermissionStatus {
+        case .checking:
+            return "Checking macOS permission state."
+        case .unknown:
+            return "Enable SnapClean before capturing."
+        case .denied:
+            return "If it is already on, toggle it off and on, then restart."
+        case .granted:
+            return ""
+        }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 8) {
                 Image(systemName: "exclamationmark.triangle.fill")
                     .foregroundStyle(.orange)
-                Text("Screen Recording is Off")
+                Text(title)
                     .font(.system(size: 12, weight: .semibold, design: .rounded))
             }
 
-            Button("Open System Settings") {
-                appState.capture.openScreenCaptureSettings()
+            if !message.isEmpty {
+                Text(message)
+                    .font(.system(size: 11, design: .rounded))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            .buttonStyle(.bordered)
-            .controlSize(.small)
+
+            HStack {
+                Button("Recheck") {
+                    appState.capture.recheckScreenCapturePermissionStatus()
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+
+                Button("Settings") {
+                    appState.capture.openScreenCaptureSettings()
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+            }
         }
     }
 }

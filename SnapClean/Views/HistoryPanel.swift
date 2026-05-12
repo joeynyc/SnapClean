@@ -2,7 +2,6 @@ import SwiftUI
 
 struct HistoryPanel: View {
     @Environment(AppState.self) var appState
-    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         VStack(spacing: 0) {
@@ -16,15 +15,6 @@ struct HistoryPanel: View {
                 Text("\(appState.history.screenshotHistory.count) screenshots")
                     .font(.system(size: 12, weight: .medium, design: .rounded))
                     .foregroundStyle(.secondary)
-
-                Button {
-                    dismiss()
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 18))
-                        .foregroundStyle(.secondary)
-                }
-                .buttonStyle(.plain)
             }
             .padding(.horizontal, 20)
             .padding(.vertical, 16)

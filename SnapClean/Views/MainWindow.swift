@@ -60,13 +60,16 @@ struct AboutView: View {
                 .font(.system(size: 13, design: .rounded))
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
+                .lineLimit(nil)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: 320)
 
             Text("Copyright © 2026 SnapClean. All rights reserved.")
                 .font(.system(size: 11, design: .rounded))
                 .foregroundStyle(.tertiary)
         }
         .padding(32)
-        .frame(width: 360)
+        .frame(width: 420)
     }
 }
 
@@ -99,7 +102,7 @@ struct WelcomeView: View {
 
             // Quick Actions
             VStack(spacing: 16) {
-                if appState.capture.screenCapturePermissionStatus == .denied {
+                if appState.capture.screenCapturePermissionStatus != .granted {
                     ScreenCapturePermissionNotice()
                 }
 
@@ -150,27 +153,62 @@ struct WelcomeView: View {
 struct ScreenCapturePermissionNotice: View {
     @Environment(AppState.self) var appState
 
+    private var title: String {
+        switch appState.capture.screenCapturePermissionStatus {
+        case .checking:
+            return "Checking Screen Recording Access"
+        case .unknown:
+            return "Screen Recording Permission Needed"
+        case .denied:
+            return "Screen Recording Still Blocked"
+        case .granted:
+            return "Screen Recording Enabled"
+        }
+    }
+
+    private var message: String {
+        switch appState.capture.screenCapturePermissionStatus {
+        case .checking:
+            return "SnapClean is checking macOS permission state."
+        case .unknown:
+            return "Enable Screen Recording for SnapClean in System Settings to capture screenshots."
+        case .denied:
+            return "If SnapClean is already enabled, toggle it off and back on, then restart SnapClean."
+        case .granted:
+            return "SnapClean can capture your screen."
+        }
+    }
+
     var body: some View {
         HStack(spacing: 12) {
-            Image(systemName: "exclamationmark.shield")
+            Image(systemName: appState.capture.screenCapturePermissionStatus == .checking ? "arrow.triangle.2.circlepath" : "exclamationmark.shield")
                 .font(.system(size: 20, weight: .semibold))
                 .foregroundStyle(.orange)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text("Screen Recording Permission Needed")
+                Text(title)
                     .font(.system(size: 13, weight: .semibold, design: .rounded))
-                Text("Enable Screen Recording for SnapClean in System Settings to capture screenshots.")
+                Text(message)
                     .font(.system(size: 11, weight: .regular))
                     .foregroundStyle(.secondary)
+                    .lineLimit(nil)
             }
 
             Spacer()
 
-            Button("Open System Settings") {
-                appState.capture.openScreenCaptureSettings()
+            HStack(spacing: 8) {
+                Button("Recheck") {
+                    appState.capture.recheckScreenCapturePermissionStatus()
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+
+                Button("Open Settings") {
+                    appState.capture.openScreenCaptureSettings()
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
             }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.small)
         }
         .padding(12)
         .background(
