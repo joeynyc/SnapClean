@@ -38,11 +38,11 @@ Unit tests live in `SnapCleanTests/`. GitHub Actions runs `xcodegen generate` an
 
 ### App Entry & Lifecycle
 
-`SnapCleanApp` (@main) creates the `WindowGroup`, `MenuBarExtra`, and injects `AppState`. `AppDelegate` (via `@NSApplicationDelegateAdaptor`) handles status bar setup, global hotkey registration, and screen recording permission checks.
+`AppDelegate` (via `@NSApplicationDelegateAdaptor`) owns the single `AppState` instance, registers global hotkeys, and checks screen recording permission. `SnapCleanApp` (@main) declares the main `Window` scene (id `main`), the History and About window groups, the `MenuBarExtra`, and Settings, injecting `appDelegate.appState` into each. Owning `AppState` in the delegate keeps hotkeys working even when no window has been opened.
 
 ### Communication Pattern
 
-`AppDelegate` communicates with `AppState` through `NotificationCenter` posts (`.startCapture`, `.openHistory`). `AppState` listens for these in `setupNotifications()`. This decouples AppKit delegate code from the SwiftUI state layer.
+Hotkey actions call `AppState.startCapture(mode:)` directly. `AppState` observes `NSApplication.didBecomeActiveNotification` in `setupNotifications()` to refresh permission status. Because `AppState` can't call SwiftUI's `openWindow`, the menu bar icon's label view hands it an `openMainWindow` closure, used when a capture finishes while the main window is closed. Pinned screenshots are shown by `PinWindowController` (Windows/) in a floating `NSPanel`, driven by `AppState.showPinWindow`/`pinnedImage`.
 
 ### Key Types in Screenshot.swift
 
