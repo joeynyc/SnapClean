@@ -48,9 +48,17 @@ A fast, native macOS screenshot tool that lives in your menu bar.
 
 You can change the capture shortcuts in **Preferences → Shortcuts**.
 
-## 🚀 Build and run
+## 📥 Install
 
-You need macOS 14 Sonoma or later, Xcode 26 or later, and [XcodeGen](https://github.com/yonaskolb/XcodeGen).
+1. Download the `.dmg` from the [latest release](https://github.com/joeynyc/SnapClean/releases/latest).
+2. Open it and drag **SnapClean** to **Applications**.
+3. Launch SnapClean and allow **Screen Recording** when macOS asks.
+
+SnapClean needs macOS 14 Sonoma or later and runs natively on Apple silicon and Intel Macs.
+
+## 🛠️ Build from source
+
+You need Xcode 26 or later and [XcodeGen](https://github.com/yonaskolb/XcodeGen).
 
 ```bash
 brew install xcodegen
@@ -64,6 +72,7 @@ xcodegen generate
 | `./build.sh build` | Debug build |
 | `./build.sh test` | Run the unit tests (CI runs the same thing) |
 | `./build.sh run` | Build and launch the newest Debug build |
+| `./build.sh dmg` | Signed, notarized release DMG in `build/` |
 | `./build.sh archive` | Release archive in `build/` |
 | `./build.sh clean` | Clean build products |
 
@@ -124,7 +133,7 @@ build.sh        Build, test, run, archive, clean
 
 ## 📦 Releasing
 
-See [docs/RELEASE.md](docs/RELEASE.md) for the release checklist and notes on notarization.
+Push a version tag (`git tag v1.0.0 && git push origin v1.0.0`) and GitHub Actions builds, notarizes, and publishes the DMG. [docs/RELEASE.md](docs/RELEASE.md) covers the one-time signing setup.
 
 ## 📄 License
 

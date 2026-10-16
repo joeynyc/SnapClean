@@ -1,70 +1,81 @@
-# Release Checklist
+# Releasing SnapClean
 
-This checklist is for preparing a public SnapClean release from a clean checkout.
-
-## Prerequisites
-
-- Xcode 26.0 or later
-- XcodeGen
-- An Apple Developer account with a valid Mac signing identity
-- App-specific password or App Store Connect API credentials if notarizing
-
-## Preflight
-
-1. Confirm the working tree is clean:
-
-   ```bash
-   git status --short
-   ```
-
-2. Generate the project and run tests:
-
-   ```bash
-   xcodegen generate
-   ./build.sh test
-   ```
-
-3. Launch the app and manually verify:
-
-   - Region capture
-   - Window capture
-   - Full-screen capture
-   - Annotation save/copy/pin
-   - History actions
-   - Screen Recording permission recovery
-
-## Build
-
-Create a release archive:
+Releases are a signed, notarized DMG attached to a GitHub Release. Pushing a version tag builds and publishes one automatically:
 
 ```bash
-./build.sh archive
+git tag v1.0.0
+git push origin v1.0.0
 ```
 
-The archive is written to:
+The [Release workflow](../.github/workflows/release.yml) then:
 
-```text
-build/SnapClean.xcarchive
-```
+1. Builds a universal (Apple silicon and Intel) Release archive, using the version from the tag.
+2. Signs the app with your Developer ID certificate.
+3. Packages it in a drag-to-Applications DMG, then signs and notarizes the DMG.
+4. Publishes a GitHub Release with the DMG, its SHA-256 checksum, and notes generated from the commits.
 
-## Signing Notes
+The build number is the workflow's run number, so it always goes up.
 
-`project.yml` is the source of truth for signing settings. Update `DEVELOPMENT_TEAM` before release builds under a different Apple Developer account, then regenerate the project:
+## One-time setup
+
+You need a paid Apple Developer Program membership for team `QNGW24R2UL`. Add five repository secrets in **GitHub → Settings → Secrets and variables → Actions**.
+
+### 1. Developer ID certificate
+
+Only the account holder can create this certificate.
+
+1. In Xcode, open **Settings → Accounts**, select your team, and click **Manage Certificates…**.
+2. Click **+** and choose **Developer ID Application**.
+3. In **Keychain Access**, find **Developer ID Application: …** under **My Certificates**. Right-click it, choose **Export**, and save it as a `.p12` with a strong password.
+4. Add these secrets:
+
+   | Secret | Value |
+   | --- | --- |
+   | `DEVELOPER_ID_CERT_P12` | Output of `base64 -i DeveloperID.p12 \| pbcopy` |
+   | `DEVELOPER_ID_CERT_PASSWORD` | The `.p12` password |
+
+Delete the exported `.p12` afterwards.
+
+### 2. Notarization API key
+
+1. Go to [App Store Connect → Users and Access → Integrations → Team Keys](https://appstoreconnect.apple.com/access/integrations/api).
+2. Create a key with the **Developer** role and download the `.p8` file. You can only download it once.
+3. Add these secrets:
+
+   | Secret | Value |
+   | --- | --- |
+   | `NOTARY_API_KEY` | Output of `base64 -i AuthKey_XXXXXXXXXX.p8 \| pbcopy` |
+   | `NOTARY_KEY_ID` | The key ID shown next to the key |
+   | `NOTARY_ISSUER_ID` | The Issuer ID shown at the top of the page |
+
+## Before you tag
+
+1. Make sure `main` is green in CI.
+2. Launch a build and check the basics: region, window, and full-screen capture, annotating, save, copy, pin, history, and permission recovery.
+3. Optionally, bump `MARKETING_VERSION` in `project.yml` to match the tag, so local builds report the same version.
+
+## Building a DMG locally
 
 ```bash
-xcodegen generate
+./build.sh dmg
 ```
 
-Stable Apple Development or Distribution signing is important because macOS privacy permissions are tied to the app identity.
+The DMG and its checksum are written to `build/`.
 
-## Distribution
+- **With a Developer ID certificate in your keychain**, the app and the DMG are signed with it.
+- **Notarization** needs credentials. For local use, store them once:
 
-For a public downloadable `.app`, export the archive with Developer ID signing and notarize the result before publishing. Keep generated archives, exported apps, and notarization output out of git.
+  ```bash
+  xcrun notarytool store-credentials snapclean --key AuthKey_XXXXXXXXXX.p8 --key-id <KEY_ID> --issuer <ISSUER_ID>
+  NOTARY_PROFILE=snapclean ./build.sh dmg
+  ```
 
-Recommended GitHub release contents:
+- **Without either**, you still get a DMG for testing, but it only opens on your own Mac. The script prints a warning when that happens.
 
-- Signed and notarized app archive
-- Versioned release notes
-- SHA-256 checksum
-- Minimum macOS version
-- Known permission requirements
+Set `REQUIRE_NOTARIZATION=1` to fail instead of falling back. `VERSION` and `BUILD_NUMBER` override the versions in `project.yml`.
+
+## Troubleshooting
+
+- **Notarization rejected:** run `xcrun notarytool log <submission-id>` with the same credentials to see Apple's reasons.
+- **`No "Developer ID Application" certificate`:** the certificate or its private key is missing from the keychain. Export it again from the Mac where it was created, with the private key included.
+- **Users asked for Screen Recording again after an update:** the app was signed with a different identity. Always release with the same Developer ID certificate.

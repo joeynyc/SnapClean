@@ -26,11 +26,14 @@ xcodegen generate
 # Clean
 ./build.sh clean
 
+# Signed, notarized release DMG in build/ (see docs/RELEASE.md)
+./build.sh dmg
+
 # Manual build
 xcodebuild -project SnapClean.xcodeproj -scheme SnapClean -configuration Debug build
 ```
 
-Unit tests live in `SnapCleanTests/`. GitHub Actions runs `xcodegen generate` and `./build.sh test`; there is no linting configured.
+Unit tests live in `SnapCleanTests/`. GitHub Actions runs `xcodegen generate` and `./build.sh test`; there is no linting configured. Pushing a `v*` tag runs `.github/workflows/release.yml`, which builds a notarized DMG and publishes a GitHub Release.
 
 ## Architecture
 
