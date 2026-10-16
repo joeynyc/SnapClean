@@ -335,6 +335,10 @@ struct HistoryThumbnailView: View {
                         .aspectRatio(contentMode: .fill)
                         .frame(width: 120, height: 80)
                         .clipShape(RoundedRectangle(cornerRadius: 8))
+                } else {
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(Color.secondary.opacity(0.1))
+                        .frame(width: 120, height: 80)
                 }
 
                 Text(item.date, style: .time)
@@ -343,13 +347,10 @@ struct HistoryThumbnailView: View {
             }
         }
         .buttonStyle(.plain)
-        .onAppear {
-            if thumbnailImage == nil, let data = item.thumbnail {
-                Task.detached(priority: .utility) {
-                    let image = NSImage(data: data)
-                    await MainActor.run { thumbnailImage = image }
-                }
-            }
+        // Keyed on the data: new history items get their thumbnail after they first appear.
+        .task(id: item.thumbnail) {
+            guard let data = item.thumbnail else { return }
+            thumbnailImage = await Task.detached(priority: .utility) { NSImage(data: data) }.value
         }
     }
 }

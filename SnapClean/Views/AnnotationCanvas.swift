@@ -16,87 +16,75 @@ struct AnnotationCanvasView: View {
         GeometryReader { geometry in
             let imageFrame = imageDisplayFrame(in: geometry.size)
             let denormalized = appState.annotations.elements.map { $0.denormalized(in: imageFrame) }
+            // Everything shares the GeometryReader's coordinate space, so the image is laid out
+            // at exactly `imageFrame` and gesture locations line up with normalized annotations.
             ZStack {
                 // Background
                 Color(NSColor.controlBackgroundColor)
 
-                // Main canvas area
-                ScrollView([.horizontal, .vertical]) {
-                    ZStack {
-                        // Base image
-                        Image(nsImage: image)
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
+                // Base image
+                Image(nsImage: image)
+                    .resizable()
+                    .frame(width: imageFrame.width, height: imageFrame.height)
+                    .position(x: imageFrame.midX, y: imageFrame.midY)
 
-                        // Single Canvas for all persisted annotations (more efficient than per-annotation Canvas views)
-                        Canvas { context, size in
-                            for element in denormalized {
-                                AnnotationRenderer.draw(element, in: context)
-                            }
-                        }
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-                        // Current drawing
-                        if !currentPath.isEmpty {
-                            AnnotationRenderer(
-                                tool: appState.annotations.selectedTool,
-                                points: currentPath,
-                                color: appState.annotations.selectedColor,
-                                lineWidth: appState.annotations.lineWidth
-                            )
-                        }
-
-                        // Current shape preview
-                        if isDrawing && appState.annotations.selectedTool.usesRectangularDrag {
-                            AnnotationRenderer(
-                                tool: appState.annotations.selectedTool,
-                                startPoint: currentStartPoint,
-                                endPoint: currentEndPoint,
-                                color: appState.annotations.selectedColor,
-                                lineWidth: appState.annotations.lineWidth
-                            )
-                        }
-
-                        // Text input overlay
-                        if isEnteringText {
-                            TextEditor(text: $textInput)
-                                .font(.system(size: appState.annotations.lineWidth * 8, design: .rounded))
-                                .foregroundStyle(appState.annotations.selectedColor)
-                                .frame(width: 200, height: 50)
-                                .position(currentEndPoint)
-                                .background(Color.clear)
-                                .onDisappear {
-                                    if !textInput.isEmpty {
-                                        let fontSize = appState.annotations.lineWidth * 8
-                                        if let element = AnnotationElement.normalized(
-                                            tool: .text,
-                                            points: [currentEndPoint],
-                                            color: appState.annotations.selectedColor,
-                                            lineWidth: appState.annotations.lineWidth,
-                                            text: textInput,
-                                            fontSize: fontSize,
-                                            in: imageFrame
-                                        ) {
-                                            appState.annotations.addAnnotation(element)
-                                        }
-                                    }
-                                    textInput = ""
-                                    isEnteringText = false
-                                }
-                        }
+                // Single Canvas for all persisted annotations (more efficient than per-annotation Canvas views)
+                Canvas { context, size in
+                    for element in denormalized {
+                        AnnotationRenderer.draw(element, in: context)
                     }
-                    .frame(minWidth: geometry.size.width, minHeight: geometry.size.height)
                 }
-                .scrollIndicators(.hidden)
-            }
-            .toolbar {
-                ToolbarItemGroup(placement: .automatic) {
-                    ToolbarView()
+
+                // Current drawing
+                if !currentPath.isEmpty {
+                    AnnotationRenderer(
+                        tool: appState.annotations.selectedTool,
+                        points: currentPath,
+                        color: appState.annotations.selectedColor,
+                        lineWidth: appState.annotations.lineWidth
+                    )
+                }
+
+                // Current shape preview
+                if isDrawing && appState.annotations.selectedTool.usesRectangularDrag {
+                    AnnotationRenderer(
+                        tool: appState.annotations.selectedTool,
+                        startPoint: currentStartPoint,
+                        endPoint: currentEndPoint,
+                        color: appState.annotations.selectedColor,
+                        lineWidth: appState.annotations.lineWidth
+                    )
+                }
+
+                // Text input overlay
+                if isEnteringText {
+                    TextEditor(text: $textInput)
+                        .font(.system(size: appState.annotations.lineWidth * 8, design: .rounded))
+                        .foregroundStyle(appState.annotations.selectedColor)
+                        .frame(width: 200, height: 50)
+                        .position(currentEndPoint)
+                        .background(Color.clear)
+                        .onDisappear {
+                            if !textInput.isEmpty {
+                                let fontSize = appState.annotations.lineWidth * 8
+                                if let element = AnnotationElement.normalized(
+                                    tool: .text,
+                                    points: [currentEndPoint],
+                                    color: appState.annotations.selectedColor,
+                                    lineWidth: appState.annotations.lineWidth,
+                                    text: textInput,
+                                    fontSize: fontSize,
+                                    in: imageFrame
+                                ) {
+                                    appState.annotations.addAnnotation(element)
+                                }
+                            }
+                            textInput = ""
+                            isEnteringText = false
+                        }
                 }
             }
-            .overlay(alignment: .bottom) {
-                BottomToolbarView()
-            }
+            .contentShape(Rectangle())
             .simultaneousGesture(
                 SpatialTapGesture()
                     .onEnded { value in
@@ -211,6 +199,14 @@ struct AnnotationCanvasView: View {
                         currentPath = []
                     }
             )
+            .toolbar {
+                ToolbarItemGroup(placement: .automatic) {
+                    ToolbarView()
+                }
+            }
+            .overlay(alignment: .bottom) {
+                BottomToolbarView()
+            }
         }
         .onAppear {
             keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
@@ -248,22 +244,32 @@ struct AnnotationCanvasView: View {
         CGSize(width: max(size.width, 1), height: max(size.height, 1))
     }
 
+    /// Fits the image inside the area above the bottom toolbar without upscaling it past its native size.
     private func imageDisplayFrame(in availableSize: CGSize) -> CGRect {
         let size = geometrySizeClamped(to: availableSize)
-        guard image.size.width > 0, image.size.height > 0 else {
+        let area = CGRect(
+            x: 0,
+            y: 0,
+            width: size.width,
+            height: max(size.height - Self.bottomToolbarHeight, 1)
+        ).insetBy(dx: Self.imagePadding, dy: Self.imagePadding)
+        guard image.size.width > 0, image.size.height > 0, area.width > 0, area.height > 0 else {
             return CGRect(origin: .zero, size: size)
         }
 
-        let scale = min(size.width / image.size.width, size.height / image.size.height)
+        let scale = min(area.width / image.size.width, area.height / image.size.height, 1)
         let width = image.size.width * scale
         let height = image.size.height * scale
         return CGRect(
-            x: (size.width - width) / 2,
-            y: (size.height - height) / 2,
+            x: area.midX - width / 2,
+            y: area.midY - height / 2,
             width: width,
             height: height
         )
     }
+
+    private static let bottomToolbarHeight: CGFloat = 56
+    private static let imagePadding: CGFloat = 16
 }
 
 struct AnnotationRenderer: View {

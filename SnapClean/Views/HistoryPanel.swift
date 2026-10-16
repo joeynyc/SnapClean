@@ -93,13 +93,10 @@ struct HistoryItemView: View {
                 }
             }
             .buttonStyle(.plain)
-            .onAppear {
-                if thumbnailImage == nil, let data = item.thumbnail {
-                    Task.detached(priority: .utility) {
-                        let image = NSImage(data: data)
-                        await MainActor.run { thumbnailImage = image }
-                    }
-                }
+            // Keyed on the data: new history items get their thumbnail after they first appear.
+            .task(id: item.thumbnail) {
+                guard let data = item.thumbnail else { return }
+                thumbnailImage = await Task.detached(priority: .utility) { NSImage(data: data) }.value
             }
 
             // Info

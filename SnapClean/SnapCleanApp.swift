@@ -7,18 +7,16 @@ enum SnapCleanWindowID {
 
 @main
 struct SnapCleanApp: App {
-    @State private var appState = AppState()
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @Environment(\.openWindow) private var openWindow
+
+    private var appState: AppState { appDelegate.appState }
 
     var body: some Scene {
         WindowGroup {
             MainWindow()
                 .environment(appState)
                 .frame(minWidth: 800, minHeight: 600)
-                .onAppear {
-                    appDelegate.appState = appState
-                }
         }
         .windowStyle(.hiddenTitleBar)
         .commands {

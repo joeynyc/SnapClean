@@ -1,9 +1,11 @@
 import SwiftUI
 import Carbon
 
+@MainActor
 class AppDelegate: NSObject, NSApplicationDelegate {
     private var aboutWindow: NSWindow?
-    weak var appState: AppState?
+    /// Owned here rather than by a window so global hotkeys work even when the main window was never opened.
+    let appState = AppState()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         setupHotkeys()
@@ -20,7 +22,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             modifiers: [.command, .shift],
             action: { [weak self] in
                 Task { @MainActor in
-                    self?.appState?.startCapture(mode: .region)
+                    self?.appState.startCapture(mode: .region)
                 }
             }
         )
@@ -30,7 +32,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             modifiers: [.command, .shift],
             action: { [weak self] in
                 Task { @MainActor in
-                    self?.appState?.startCapture(mode: .window)
+                    self?.appState.startCapture(mode: .window)
                 }
             }
         )
@@ -40,7 +42,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             modifiers: [.command, .shift],
             action: { [weak self] in
                 Task { @MainActor in
-                    self?.appState?.startCapture(mode: .screen)
+                    self?.appState.startCapture(mode: .screen)
                 }
             }
         )
