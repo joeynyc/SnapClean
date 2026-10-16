@@ -34,7 +34,7 @@ Unit tests live in `SnapCleanTests/`. GitHub Actions runs `xcodegen generate` an
 
 ## Architecture
 
-**MVVM with centralized state.** `AppState` is a `@MainActor ObservableObject` that holds all app state and is passed to views via `@EnvironmentObject`.
+**MVVM with centralized state.** `AppState` is an `@Observable @MainActor` coordinator, split into `CaptureState`, `AnnotationState`, and `HistoryState`, and passed to views via `.environment(appState)`.
 
 ### App Entry & Lifecycle
 
@@ -47,11 +47,11 @@ Hotkey actions call `AppState.startCapture(mode:)` directly. `AppState` observes
 ### Key Types in Screenshot.swift
 
 - `AppState` — centralized observable state; owns `ScreenCaptureService` and `ScreenshotHistoryManager` instances
-- `ScreenshotItem` — Codable model for persisted history entries (stored as JSON in UserDefaults)
+- `ScreenshotItem` — Codable model for persisted history entries (stored in `history.json` beside the saved screenshots)
 - `AnnotationElement` — represents a single drawn annotation (arrow, text, shape, etc.)
 - `CaptureMode` — enum: `.region`, `.window`, `.screen`
 - `AnnotationTool` — enum with 8 tools: arrow, text, rectangle, oval, line, pencil, blur, pixelate
-- `ScreenshotHistoryManager` — handles UserDefaults persistence and file cleanup; history capped at 50 items
+- `ScreenshotHistoryManager` — handles `history.json` persistence (migrating the legacy UserDefaults store) and file cleanup; history limit defaults to 50
 
 ### Services
 
