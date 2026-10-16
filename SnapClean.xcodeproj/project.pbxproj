@@ -225,7 +225,6 @@
 				};
 			};
 			buildConfigurationList = CB7DA1FF8199BDB60EB4E718 /* Build configuration list for PBXProject "SnapClean" */;
-			compatibilityVersion = "Xcode 14.0";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -235,6 +234,7 @@
 			mainGroup = 6441FDB15465C59EB6AA31F8;
 			minimizedProjectReferenceProxies = 1;
 			preferredProjectObjectVersion = 77;
+			productRefGroup = E348B3FA11CBE09FDB0DB483 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
