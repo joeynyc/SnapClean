@@ -21,6 +21,7 @@
 		A2B23D89B1A3EF030C94DABF /* Screenshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65B71A1014464C8CD6A06516 /* Screenshot.swift */; };
 		BE2BE87B17318D648F30CA56 /* MainWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6AED29B025D3EE7B5532D97 /* MainWindow.swift */; };
 		C8B86253579D5B6D6603DC7F /* ToolbarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61361985584152143691777F /* ToolbarView.swift */; };
+		D4517D83B2B47E3942843FEF /* PinWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = FED460E164A0E684C5F97FEA /* PinWindowController.swift */; };
 		E6E77254178CEB619957C998 /* CaptureOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD8FF97CD0D5FBBD85368F93 /* CaptureOverlay.swift */; };
 		F473CC85E14774300AD137B9 /* HistoryPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C674872497C779C2068C35C /* HistoryPanel.swift */; };
 		FA7744627DDEDEFABA7E2123 /* MenuBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE91F7D29108F1A99F0D61BB /* MenuBarView.swift */; };
@@ -62,6 +63,7 @@
 		EE91F7D29108F1A99F0D61BB /* MenuBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarView.swift; sourceTree = "<group>"; };
 		F6AED29B025D3EE7B5532D97 /* MainWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainWindow.swift; sourceTree = "<group>"; };
 		FDAD5CCBC715225FBC77C69F /* HotkeyManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotkeyManager.swift; sourceTree = "<group>"; };
+		FED460E164A0E684C5F97FEA /* PinWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PinWindowController.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -145,6 +147,7 @@
 			isa = PBXGroup;
 			children = (
 				B70572D94F5FA81C8B2B03F9 /* CaptureOverlayWindowController.swift */,
+				FED460E164A0E684C5F97FEA /* PinWindowController.swift */,
 			);
 			path = Windows;
 			sourceTree = "<group>";
@@ -278,6 +281,7 @@
 				BE2BE87B17318D648F30CA56 /* MainWindow.swift in Sources */,
 				FA7744627DDEDEFABA7E2123 /* MenuBarView.swift in Sources */,
 				2720026A3EEA64C1DF36DB48 /* PinWindow.swift in Sources */,
+				D4517D83B2B47E3942843FEF /* PinWindowController.swift in Sources */,
 				FF4782B66DD61FCF11C114B4 /* PreferencesView.swift in Sources */,
 				36B32C6FF1C2CF47D83D2C16 /* ScreenCapture.swift in Sources */,
 				A2B23D89B1A3EF030C94DABF /* Screenshot.swift in Sources */,

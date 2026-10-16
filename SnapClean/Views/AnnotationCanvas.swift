@@ -461,12 +461,12 @@ struct BottomToolbarView: View {
             // Right side - Status
             #if compiler(>=6.2)
             if #available(macOS 26, *) {
-                Text("\(appState.annotations.elements.count) annotations")
+                Text("^[\(appState.annotations.elements.count) annotation](inflect: true)")
                     .font(.system(size: 12, weight: .medium, design: .rounded))
                     .foregroundStyle(.secondary)
                     .glassEffect()
             } else {
-                Text("\(appState.annotations.elements.count) annotations")
+                Text("^[\(appState.annotations.elements.count) annotation](inflect: true)")
                     .font(.system(size: 12, weight: .medium, design: .rounded))
                     .foregroundStyle(.secondary)
                     .padding(.horizontal, 10)
@@ -474,7 +474,7 @@ struct BottomToolbarView: View {
                     .background(Capsule().fill(Color.secondary.opacity(0.15)))
             }
             #else
-            Text("\(appState.annotations.elements.count) annotations")
+            Text("^[\(appState.annotations.elements.count) annotation](inflect: true)")
                 .font(.system(size: 12, weight: .medium, design: .rounded))
                 .foregroundStyle(.secondary)
                 .padding(.horizontal, 10)

@@ -5,7 +5,6 @@ struct MainWindow: View {
     @Environment(AppState.self) var appState
 
     var body: some View {
-        @Bindable var appState = appState
         ZStack {
             if appState.capture.showAnnotationCanvas, let image = appState.capture.capturedImage {
                 AnnotationCanvasView(image: image)
@@ -24,10 +23,6 @@ struct MainWindow: View {
                 appState.capture.mainWindow = window
             }
         )
-        .sheet(isPresented: $appState.showPinWindow) {
-            PinWindow()
-                .environment(appState)
-        }
     }
 }
 

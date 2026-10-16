@@ -2,10 +2,10 @@ import SwiftUI
 
 struct PinWindow: View {
     @Environment(AppState.self) var appState
-    @Environment(\.dismiss) private var dismiss
 
     @State private var offset: CGSize = .zero
     @State private var lastOffset: CGSize = .zero
+    @State private var isHovering = false
 
     var body: some View {
         if let image = appState.pinnedImage {
@@ -34,15 +34,23 @@ struct PinWindow: View {
                     HStack {
                         Spacer()
 
+                        // Only shown on hover so it doesn't cover small pinned images.
                         PinToolbarView()
                             .padding(.top, 8)
                             .padding(.trailing, 8)
+                            .opacity(isHovering ? 1 : 0)
+                            .allowsHitTesting(isHovering)
                     }
 
                     Spacer()
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .onHover { hovering in
+                withAnimation(.easeInOut(duration: 0.15)) {
+                    isHovering = hovering
+                }
+            }
             .background(appState.isTransparentBackground ? Color.clear : Color(NSColor.windowBackgroundColor))
             .ignoresSafeArea()
             .gesture(

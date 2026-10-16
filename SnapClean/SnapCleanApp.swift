@@ -1,6 +1,7 @@
 import SwiftUI
 
 enum SnapCleanWindowID {
+    static let main = "main"
     static let history = "history"
     static let about = "about"
 }
@@ -13,7 +14,7 @@ struct SnapCleanApp: App {
     private var appState: AppState { appDelegate.appState }
 
     var body: some Scene {
-        WindowGroup {
+        Window("SnapClean", id: SnapCleanWindowID.main) {
             MainWindow()
                 .environment(appState)
                 .frame(minWidth: 800, minHeight: 600)
@@ -39,8 +40,11 @@ struct SnapCleanApp: App {
             }
         }
 
-        MenuBarExtra("SnapClean", systemImage: "camera.fill") {
+        MenuBarExtra {
             MenuBarView()
+                .environment(appState)
+        } label: {
+            MenuBarExtraLabel()
                 .environment(appState)
         }
         .menuBarExtraStyle(.window)
@@ -61,5 +65,22 @@ struct SnapCleanApp: App {
             AboutView()
         }
         .defaultSize(width: 420, height: 300)
+    }
+}
+
+/// The menu bar icon is the one view that exists for the app's whole lifetime, so it hands
+/// `openWindow` to AppState for captures that finish while the main window is closed.
+private struct MenuBarExtraLabel: View {
+    @Environment(AppState.self) private var appState
+    @Environment(\.openWindow) private var openWindow
+
+    var body: some View {
+        Image(systemName: "camera.fill")
+            .accessibilityLabel("SnapClean")
+            .onAppear {
+                appState.capture.openMainWindow = { [openWindow] in
+                    openWindow(id: SnapCleanWindowID.main)
+                }
+            }
     }
 }

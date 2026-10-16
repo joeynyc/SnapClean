@@ -229,6 +229,8 @@ final class CaptureState {
     @ObservationIgnored private let screenCaptureAccessPromptedKey = "didPromptScreenCaptureAccess"
     @ObservationIgnored var wasMainWindowVisibleBeforeCapture = false
     @ObservationIgnored weak var mainWindow: NSWindow?
+    /// Opens the main window scene when no main window exists yet; set from a SwiftUI view that has `openWindow`.
+    @ObservationIgnored var openMainWindow: (() -> Void)?
 
     init(screenCapture: ScreenCapturing = ScreenCaptureService()) {
         self.screenCapture = screenCapture
@@ -238,10 +240,18 @@ final class CaptureState {
         isCapturing = false
         captureCountdown = 0
         captureOverlayController.hide()
-        if showMainWindow, let window = mainWindow {
-            window.makeKeyAndOrderFront(nil)
-            NSApp.activate(ignoringOtherApps: true)
+        if showMainWindow {
+            revealMainWindow()
         }
+    }
+
+    func revealMainWindow() {
+        if let window = mainWindow {
+            window.makeKeyAndOrderFront(nil)
+        } else {
+            openMainWindow?()
+        }
+        NSApp.activate()
     }
 
     func refreshScreenCapturePermissionStatus() {
@@ -331,10 +341,7 @@ final class CaptureState {
     }
 
     func revealMainWindowForPermissionGuidance() {
-        if let window = mainWindow {
-            window.makeKeyAndOrderFront(nil)
-        }
-        NSApp.activate(ignoringOtherApps: true)
+        revealMainWindow()
     }
 }
 
@@ -486,7 +493,9 @@ final class AppState {
     let annotations: AnnotationState
     let history: HistoryState
 
-    var showPinWindow = false
+    var showPinWindow = false {
+        didSet { updatePinWindow() }
+    }
     var pinnedImage: NSImage?
     var isTransparentBackground = false
 
@@ -512,6 +521,7 @@ final class AppState {
     }
 
     @ObservationIgnored private var captureTimer: Timer?
+    @ObservationIgnored private let pinWindowController = PinWindowController()
 
     init(screenCapture: ScreenCapturing = ScreenCaptureService(),
          historyManager: HistoryPersisting = ScreenshotHistoryManager()) {
@@ -533,6 +543,10 @@ final class AppState {
         }
         setupNotifications()
         capture.refreshScreenCapturePermissionStatus()
+        pinWindowController.onClose = { [weak self] in
+            self?.showPinWindow = false
+            self?.pinnedImage = nil
+        }
     }
 
     private func setupNotifications() {
@@ -633,6 +647,14 @@ final class AppState {
     }
 
     // MARK: - Private Helpers
+
+    private func updatePinWindow() {
+        if showPinWindow, let pinnedImage {
+            pinWindowController.show(image: pinnedImage, appState: self)
+        } else {
+            pinWindowController.hide()
+        }
+    }
 
     @MainActor
     private func renderAnnotatedImage() -> NSImage? {
