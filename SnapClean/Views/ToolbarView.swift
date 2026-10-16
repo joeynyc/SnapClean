@@ -83,83 +83,90 @@ struct ToolPicker: View {
 
 struct ColorPickerButton: View {
     @Binding var color: Color
+    @State private var isPresented = false
+
+    private static let presets: [Color] = [.red, .orange, .yellow, .green, .blue, .purple, .pink, .white, .black]
 
     var body: some View {
-        Menu {
-            ColorPicker("Stroke Color", selection: $color)
-                .labelsHidden()
-                .frame(width: 200, height: 150)
+        Button {
+            isPresented.toggle()
         } label: {
-            HStack(spacing: 6) {
-                Circle()
-                    .fill(color)
-                    .frame(width: 16, height: 16)
-                    .overlay(
-                        Circle()
-                            .stroke(Color.gray.opacity(0.3), lineWidth: 1)
-                    )
-
-                Image(systemName: "chevron.down")
-                    .font(.system(size: 10, weight: .medium))
-            }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 6)
-            .background(
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(Color.secondary.opacity(0.1))
-            )
+            Circle()
+                .fill(color)
+                .frame(width: 16, height: 16)
+                .overlay(Circle().stroke(Color.gray.opacity(0.4), lineWidth: 1))
+                .frame(width: 28, height: 28)
+                .contentShape(Rectangle())
         }
-        .menuStyle(.borderlessButton)
+        .buttonStyle(.plain)
+        .help("Stroke Color")
+        // NSMenu can't host a ColorPicker, so the choices live in a popover.
+        .popover(isPresented: $isPresented, arrowEdge: .bottom) {
+            VStack(alignment: .leading, spacing: 10) {
+                LazyVGrid(columns: Array(repeating: GridItem(.fixed(24), spacing: 8), count: 5), spacing: 8) {
+                    ForEach(Self.presets, id: \.self) { preset in
+                        Button {
+                            color = preset
+                            isPresented = false
+                        } label: {
+                            Circle()
+                                .fill(preset)
+                                .frame(width: 22, height: 22)
+                                .overlay(Circle().stroke(Color.gray.opacity(0.4), lineWidth: 1))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                ColorPicker("Custom…", selection: $color)
+                    .font(.system(size: 12, weight: .medium, design: .rounded))
+            }
+            .padding(12)
+        }
     }
 }
 
 struct LineWidthPicker: View {
     @Binding var width: CGFloat
+    @State private var isPresented = false
 
     var body: some View {
-        Menu {
+        Button {
+            isPresented.toggle()
+        } label: {
+            HStack(spacing: 6) {
+                Capsule()
+                    .fill(Color.primary)
+                    .frame(width: 18, height: min(width, 10))
+                Text("\(Int(width))")
+                    .font(.system(size: 12, weight: .medium, design: .rounded).monospacedDigit())
+            }
+            .frame(height: 28)
+            .padding(.horizontal, 4)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help("Line Width")
+        .popover(isPresented: $isPresented, arrowEdge: .bottom) {
             VStack(spacing: 12) {
                 HStack {
                     Text("Size")
-                        .font(.system(size: 12, weight: .medium, design: .rounded))
                         .foregroundStyle(.secondary)
                     Spacer()
                     Text("\(Int(width))")
-                        .font(.system(size: 12, weight: .medium, design: .rounded))
+                        .monospacedDigit()
                 }
+                .font(.system(size: 12, weight: .medium, design: .rounded))
 
                 Slider(value: $width, in: 1...20, step: 1)
-                    .frame(width: 150)
+                    .frame(width: 160)
 
-                // Preview
-                HStack {
-                    Spacer()
-                    Rectangle()
-                        .fill(Color.accentColor)
-                        .frame(width: 50, height: width)
-                        .clipShape(.rect(cornerRadius: width / 2))
-                    Spacer()
-                }
+                Capsule()
+                    .fill(Color.accentColor)
+                    .frame(width: 60, height: width)
+                    .frame(height: 20)
             }
             .padding(12)
-        } label: {
-            HStack(spacing: 6) {
-                Rectangle()
-                    .fill(Color.primary)
-                    .frame(width: 20, height: width)
-                    .clipShape(.rect(cornerRadius: width / 2))
-
-                Image(systemName: "chevron.down")
-                    .font(.system(size: 10, weight: .medium))
-            }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 6)
-            .background(
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(Color.secondary.opacity(0.1))
-            )
         }
-        .menuStyle(.borderlessButton)
     }
 }
 
