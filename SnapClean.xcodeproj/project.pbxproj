@@ -20,6 +20,7 @@
 		8C05D7EE210017399B877D69 /* SnapCleanApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 822CFEF9F44D7343D9CFBBEC /* SnapCleanApp.swift */; };
 		A2B23D89B1A3EF030C94DABF /* Screenshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65B71A1014464C8CD6A06516 /* Screenshot.swift */; };
 		BE2BE87B17318D648F30CA56 /* MainWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6AED29B025D3EE7B5532D97 /* MainWindow.swift */; };
+		C18FDC629D99250F8F942CC9 /* HotkeyShortcut.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2323E559F5BF37928CA7098 /* HotkeyShortcut.swift */; };
 		C8B86253579D5B6D6603DC7F /* ToolbarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61361985584152143691777F /* ToolbarView.swift */; };
 		D4517D83B2B47E3942843FEF /* PinWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = FED460E164A0E684C5F97FEA /* PinWindowController.swift */; };
 		E6E77254178CEB619957C998 /* CaptureOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD8FF97CD0D5FBBD85368F93 /* CaptureOverlay.swift */; };
@@ -54,6 +55,7 @@
 		822CFEF9F44D7343D9CFBBEC /* SnapCleanApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnapCleanApp.swift; sourceTree = "<group>"; };
 		883E6634E847B2B21D4C26F4 /* HistoryStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryStateTests.swift; sourceTree = "<group>"; };
 		AEA38B5D304DCAEF4266DF9D /* AnnotationModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnotationModelTests.swift; sourceTree = "<group>"; };
+		B2323E559F5BF37928CA7098 /* HotkeyShortcut.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotkeyShortcut.swift; sourceTree = "<group>"; };
 		B485F2380FBA7A50DC0EEAEE /* ServiceProtocols.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServiceProtocols.swift; sourceTree = "<group>"; };
 		B70572D94F5FA81C8B2B03F9 /* CaptureOverlayWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureOverlayWindowController.swift; sourceTree = "<group>"; };
 		C67C1A5D30C7CA6660767053 /* AnnotationCanvas.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnotationCanvas.swift; sourceTree = "<group>"; };
@@ -129,6 +131,7 @@
 		9108A797AA4D65E4430CC9BF /* Models */ = {
 			isa = PBXGroup;
 			children = (
+				B2323E559F5BF37928CA7098 /* HotkeyShortcut.swift */,
 				65B71A1014464C8CD6A06516 /* Screenshot.swift */,
 			);
 			path = Models;
@@ -278,6 +281,7 @@
 				68385B1F447DC6D404284CB9 /* CaptureOverlayWindowController.swift in Sources */,
 				F473CC85E14774300AD137B9 /* HistoryPanel.swift in Sources */,
 				1C32004A450CCE42DE5AD246 /* HotkeyManager.swift in Sources */,
+				C18FDC629D99250F8F942CC9 /* HotkeyShortcut.swift in Sources */,
 				BE2BE87B17318D648F30CA56 /* MainWindow.swift in Sources */,
 				FA7744627DDEDEFABA7E2123 /* MenuBarView.swift in Sources */,
 				2720026A3EEA64C1DF36DB48 /* PinWindow.swift in Sources */,

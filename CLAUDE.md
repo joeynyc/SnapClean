@@ -42,7 +42,7 @@ Unit tests live in `SnapCleanTests/`. GitHub Actions runs `xcodegen generate` an
 
 ### Communication Pattern
 
-Hotkey actions call `AppState.startCapture(mode:)` directly. `AppState` observes `NSApplication.didBecomeActiveNotification` in `setupNotifications()` to refresh permission status. Because `AppState` can't call SwiftUI's `openWindow`, the menu bar icon's label view hands it an `openMainWindow` closure, used when a capture finishes while the main window is closed. Pinned screenshots are shown by `PinWindowController` (Windows/) in a floating `NSPanel`, driven by `AppState.showPinWindow`/`pinnedImage`.
+Hotkey actions call `AppState.startCapture(mode:)` directly; shortcuts default to ⇧⌘F1/F2/F3 and can be changed in Preferences. `AppState` observes `NSApplication.didBecomeActiveNotification` in `setupNotifications()` to refresh permission status. Because `AppState` can't call SwiftUI's `openWindow`, the menu bar icon's label view hands it an `openMainWindow` closure, used when a capture finishes while the main window is closed. Pinned screenshots are shown by `PinWindowController` (Windows/) in a floating `NSPanel`, driven by `AppState.showPinWindow`/`pinnedImage`.
 
 ### Key Types in Screenshot.swift
 
@@ -51,12 +51,13 @@ Hotkey actions call `AppState.startCapture(mode:)` directly. `AppState` observes
 - `AnnotationElement` — represents a single drawn annotation (arrow, text, shape, etc.)
 - `CaptureMode` — enum: `.region`, `.window`, `.screen`
 - `AnnotationTool` — enum with 8 tools: arrow, text, rectangle, oval, line, pencil, blur, pixelate
-- `ScreenshotHistoryManager` — handles `history.json` persistence (migrating the legacy UserDefaults store) and file cleanup; history limit defaults to 50
+- `ScreenshotHistoryManager` — saves new screenshots to the user's real `~/Downloads` (`saveDirectory`) and keeps `history.json` plus older screenshots in the app container (`storeDirectory`). History trimming and Clear History only delete files inside `storeDirectory`; deleting a history item moves its file to the Trash. History limit defaults to 50
+- `HotkeyShortcut` (HotkeyShortcut.swift) — user-recordable global shortcut per `CaptureMode`, stored in UserDefaults as `hotkey.<mode>`; `AppDelegate` re-registers hotkeys via `AppState.onHotkeysChanged`
 
 ### Services
 
 - `ScreenCaptureService` (ScreenCapture.swift) — wraps ScreenCaptureKit for region/window/full-screen capture; also provides save-to-disk, copy-to-clipboard, and image processing (pixelate/blur via Core Image filters)
-- `HotkeyManager` (HotkeyManager.swift) — singleton that registers global keyboard shortcuts using Carbon `RegisterEventHotKey`
+- `HotkeyManager` (HotkeyManager.swift) — singleton that registers global keyboard shortcuts using Carbon `RegisterEventHotKey`; global hotkeys are unregistered while the Preferences shortcut recorder is active
 
 ### View Hierarchy
 

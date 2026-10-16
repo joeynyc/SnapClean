@@ -6,7 +6,7 @@ import os
 private let appLogger = Logger(subsystem: "com.snapclean.app", category: "app")
 private let historyLogger = Logger(subsystem: "com.snapclean.app", category: "history")
 
-enum CaptureMode {
+enum CaptureMode: String, CaseIterable {
     case region
     case window
     case screen
@@ -474,7 +474,7 @@ final class HistoryState {
     func deleteHistoryItem(_ item: ScreenshotItem) {
         screenshotHistory.removeAll { $0.id == item.id }
         historyManager.saveHistory(screenshotHistory)
-        historyManager.removeFiles(atPaths: [item.filePath])
+        historyManager.trashFile(atPath: item.filePath)
     }
 
     private func trimHistoryToLimit(limit: Int) -> [ScreenshotItem] {
@@ -509,6 +509,15 @@ final class AppState {
     var timerDuration: Int = 3 {
         didSet { UserDefaults.standard.set(timerDuration, forKey: "timerDuration") }
     }
+    /// Custom global shortcuts; modes without an entry use `HotkeyShortcut.defaultShortcut(for:)`.
+    private(set) var shortcuts: [CaptureMode: HotkeyShortcut] = [:]
+    /// While true, global hotkeys are unregistered so the shortcut recorder receives every key press.
+    var isRecordingShortcut = false {
+        didSet { onHotkeysChanged?() }
+    }
+    /// Set by AppDelegate to re-register global hotkeys when shortcuts change.
+    @ObservationIgnored var onHotkeysChanged: (() -> Void)?
+
     var historyLimit: Int = 50 {
         didSet {
             let clamped = min(max(historyLimit, 1), 1000)
@@ -533,10 +542,16 @@ final class AppState {
         self.copyAfterCapture = UserDefaults.standard.bool(forKey: "copyAfterCapture")
         self.showPreviewAfterCapture = UserDefaults.standard.object(forKey: "showPreviewAfterCapture") == nil
             ? true : UserDefaults.standard.bool(forKey: "showPreviewAfterCapture")
-        let rawTimer = UserDefaults.standard.integer(forKey: "timerDuration")
-        self.timerDuration = rawTimer > 0 ? rawTimer : 3
+        self.timerDuration = UserDefaults.standard.object(forKey: "timerDuration") == nil
+            ? 3 : max(UserDefaults.standard.integer(forKey: "timerDuration"), 0)
         let rawLimit = UserDefaults.standard.integer(forKey: "historyLimit")
         self.historyLimit = rawLimit > 0 ? rawLimit : 50
+        for mode in CaptureMode.allCases {
+            if let data = UserDefaults.standard.data(forKey: Self.shortcutDefaultsKey(for: mode)),
+               let shortcut = try? JSONDecoder().decode(HotkeyShortcut.self, from: data) {
+                shortcuts[mode] = shortcut
+            }
+        }
 
         Task { @MainActor in
             await history.loadHistory(limit: historyLimit)
@@ -559,6 +574,42 @@ final class AppState {
                 self?.capture.refreshScreenCapturePermissionStatus()
             }
         }
+    }
+
+    // MARK: - Shortcuts
+
+    func shortcut(for mode: CaptureMode) -> HotkeyShortcut {
+        shortcuts[mode] ?? HotkeyShortcut.defaultShortcut(for: mode)
+    }
+
+    /// Assigns a shortcut, returning false if another capture mode already uses it.
+    @discardableResult
+    func setShortcut(_ shortcut: HotkeyShortcut, for mode: CaptureMode) -> Bool {
+        let isTaken = CaptureMode.allCases.contains { other in
+            other != mode
+                && self.shortcut(for: other).keyCode == shortcut.keyCode
+                && self.shortcut(for: other).modifiers == shortcut.modifiers
+        }
+        guard !isTaken else { return false }
+
+        shortcuts[mode] = shortcut
+        if let data = try? JSONEncoder().encode(shortcut) {
+            UserDefaults.standard.set(data, forKey: Self.shortcutDefaultsKey(for: mode))
+        }
+        onHotkeysChanged?()
+        return true
+    }
+
+    func resetShortcuts() {
+        shortcuts.removeAll()
+        for mode in CaptureMode.allCases {
+            UserDefaults.standard.removeObject(forKey: Self.shortcutDefaultsKey(for: mode))
+        }
+        onHotkeysChanged?()
+    }
+
+    private static func shortcutDefaultsKey(for mode: CaptureMode) -> String {
+        "hotkey.\(mode.rawValue)"
     }
 
     // MARK: - Cross-cutting Methods
@@ -721,6 +772,17 @@ final class AppState {
 
     private func startScreenCountdown() {
         captureTimer?.invalidate()
+
+        guard timerDuration > 0 else {
+            capture.captureCountdown = 0
+            Task { @MainActor in
+                // Give the main window a moment to finish ordering out before capturing.
+                try? await Task.sleep(for: .milliseconds(150))
+                await performFullScreenCapture()
+            }
+            return
+        }
+
         capture.captureCountdown = timerDuration
         captureTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
             Task { @MainActor in
@@ -733,13 +795,17 @@ final class AppState {
                 self.capture.captureCountdown = 0
                 self.captureTimer?.invalidate()
                 self.captureTimer = nil
-
-                if let image = await self.capture.screenCapture.captureFullScreen() {
-                    self.handleCapturedImage(image)
-                } else {
-                    self.capture.endCapture(showMainWindow: self.capture.wasMainWindowVisibleBeforeCapture)
-                }
+                await self.performFullScreenCapture()
             }
+        }
+    }
+
+    private func performFullScreenCapture() async {
+        guard capture.isCapturing else { return }
+        if let image = await capture.screenCapture.captureFullScreen() {
+            handleCapturedImage(image)
+        } else {
+            capture.endCapture(showMainWindow: capture.wasMainWindowVisibleBeforeCapture)
         }
     }
 }
@@ -747,7 +813,15 @@ final class AppState {
 // MARK: - ScreenshotHistoryManager
 
 class ScreenshotHistoryManager: HistoryPersisting {
+    /// Where new screenshots are saved: the user's real Downloads folder. Inside the sandbox,
+    /// `FileManager`'s Downloads URL points into the app container, so build the path from the home directory.
     static var defaultSaveDirectory: URL {
+        let home = getpwuid(getuid()).flatMap { String(validatingUTF8: $0.pointee.pw_dir) } ?? NSHomeDirectory()
+        return URL(fileURLWithPath: home, isDirectory: true).appendingPathComponent("Downloads", isDirectory: true)
+    }
+
+    /// App-owned folder holding history.json and screenshots saved by earlier versions.
+    static var defaultStoreDirectory: URL {
         let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
         return documentsPath.appendingPathComponent("SnapClean/History", isDirectory: true)
     }
@@ -756,17 +830,23 @@ class ScreenshotHistoryManager: HistoryPersisting {
     private let historyFileName = "history.json"
     private let ioQueue = DispatchQueue(label: "com.snapclean.history-io", qos: .utility)
     let saveDirectory: URL
+    let storeDirectory: URL
     private let historyFileURL: URL
 
-    /// Validates that a file path is within the allowed save directory
+    /// Only files inside the app-owned store may be deleted automatically; screenshots in
+    /// the user's own folders (like Downloads) are never removed by history trimming or clearing.
     func isPathAllowed(_ path: String) -> Bool {
-        path.hasPrefix(saveDirectory.path)
+        URL(fileURLWithPath: path).standardizedFileURL.path.hasPrefix(storeDirectory.standardizedFileURL.path + "/")
     }
 
-    init(saveDirectory: URL = ScreenshotHistoryManager.defaultSaveDirectory) {
+    init(
+        saveDirectory: URL = ScreenshotHistoryManager.defaultSaveDirectory,
+        storeDirectory: URL = ScreenshotHistoryManager.defaultStoreDirectory
+    ) {
         self.saveDirectory = saveDirectory
-        historyFileURL = saveDirectory.appendingPathComponent(historyFileName)
-        try? FileManager.default.createDirectory(at: saveDirectory, withIntermediateDirectories: true)
+        self.storeDirectory = storeDirectory
+        historyFileURL = storeDirectory.appendingPathComponent(historyFileName)
+        try? FileManager.default.createDirectory(at: storeDirectory, withIntermediateDirectories: true)
         migrateFromLegacyUserDefaultsIfNeeded()
     }
 
@@ -802,14 +882,20 @@ class ScreenshotHistoryManager: HistoryPersisting {
         let uniquePaths = Array(Set(paths))
         ioQueue.async { [weak self] in
             guard let self = self else { return }
-            let allowedPrefix = self.saveDirectory.path
             for path in uniquePaths where FileManager.default.fileExists(atPath: path) {
-                // Security: only allow deletion of files within the intended save directory
-                guard path.hasPrefix(allowedPrefix) else {
-                    historyLogger.warning("Attempted to delete file outside save directory")
-                    continue
-                }
+                guard self.isPathAllowed(path) else { continue }
                 try? FileManager.default.removeItem(atPath: path)
+            }
+        }
+    }
+
+    func trashFile(atPath path: String) {
+        ioQueue.async {
+            guard FileManager.default.fileExists(atPath: path) else { return }
+            do {
+                try FileManager.default.trashItem(at: URL(fileURLWithPath: path), resultingItemURL: nil)
+            } catch {
+                historyLogger.error("Failed to move screenshot to Trash: \(error.localizedDescription, privacy: .private)")
             }
         }
     }

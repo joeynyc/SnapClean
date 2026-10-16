@@ -39,7 +39,7 @@ struct MenuBarView: View {
                 title: "Capture Region",
                 subtitle: "Draw a selection",
                 icon: "square.dashed",
-                keyboard: "⌘⇧F1"
+                keyboard: appState.shortcut(for: .region).displayString
             ) {
                 appState.startCapture(mode: .region)
             }
@@ -48,7 +48,7 @@ struct MenuBarView: View {
                 title: "Capture Window",
                 subtitle: "Click a window",
                 icon: "macwindow",
-                keyboard: "⌘⇧F2"
+                keyboard: appState.shortcut(for: .window).displayString
             ) {
                 appState.startCapture(mode: .window)
             }
@@ -57,7 +57,7 @@ struct MenuBarView: View {
                 title: "Capture Screen",
                 subtitle: "Full screen",
                 icon: "desktopcomputer",
-                keyboard: "⌘⇧F3"
+                keyboard: appState.shortcut(for: .screen).displayString
             ) {
                 appState.startCapture(mode: .screen)
             }

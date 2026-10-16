@@ -201,8 +201,14 @@ class ScreenCaptureService: ScreenCapturing {
 
     func saveImage(_ image: NSImage, to folder: URL? = nil) -> String? {
         let saveFolder = folder ?? ScreenshotHistoryManager.defaultSaveDirectory
-        let fileName = "SnapClean_\(dateFormatter.string(from: Date())).png"
-        let fileURL = saveFolder.appendingPathComponent(fileName)
+        let baseName = "SnapClean_\(dateFormatter.string(from: Date()))"
+        // Timestamps have one-second resolution; never overwrite an earlier save from the same second.
+        var fileURL = saveFolder.appendingPathComponent("\(baseName).png")
+        var suffix = 2
+        while FileManager.default.fileExists(atPath: fileURL.path) {
+            fileURL = saveFolder.appendingPathComponent("\(baseName) \(suffix).png")
+            suffix += 1
+        }
 
         guard let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
             return nil

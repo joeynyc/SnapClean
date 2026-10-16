@@ -105,7 +105,7 @@ struct WelcomeView: View {
                     title: "Capture Region",
                     subtitle: "Draw a rectangle to capture",
                     icon: "square.dashed",
-                    keyboard: "⌘⇧F1"
+                    keyboard: appState.shortcut(for: .region).displayString
                 ) {
                     appState.startCapture(mode: .region)
                 }
@@ -114,7 +114,7 @@ struct WelcomeView: View {
                     title: "Capture Window",
                     subtitle: "Click to capture a window",
                     icon: "macwindow",
-                    keyboard: "⌘⇧F2"
+                    keyboard: appState.shortcut(for: .window).displayString
                 ) {
                     appState.startCapture(mode: .window)
                 }
@@ -123,7 +123,7 @@ struct WelcomeView: View {
                     title: "Capture Screen",
                     subtitle: "Capture the entire screen",
                     icon: "desktopcomputer",
-                    keyboard: "⌘⇧F3"
+                    keyboard: appState.shortcut(for: .screen).displayString
                 ) {
                     appState.startCapture(mode: .screen)
                 }

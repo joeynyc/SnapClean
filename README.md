@@ -10,7 +10,7 @@ SnapClean is a native macOS screenshot app for capturing, annotating, saving, an
 - **Modern capture pipeline:** Uses ScreenCaptureKit for current macOS screen capture behavior.
 - **Annotation tools:** Add arrows, text, rectangles, ovals, lines, freehand drawings, blur, and pixelation.
 - **Undo and redo:** Iterate on annotations before saving or copying.
-- **Screenshot history:** Keeps the latest 50 screenshots and stores image files in `~/Documents/SnapClean/History`.
+- **Screenshot history:** Saves screenshots to `~/Downloads` and keeps a history of the latest 50. Clearing history never deletes your files; deleting a single item moves it to the Trash.
 - **Pin to screen:** Float a screenshot above other windows for reference.
 - **Menu bar access:** Start captures and open history from the macOS menu bar.
 - **Native macOS windows:** Dedicated windows for the main app, history, preferences, and about view.
@@ -103,6 +103,8 @@ If SnapClean still reports that Screen Recording is blocked, remove or toggle th
 | Cmd+S | Save |
 | Cmd+C | Copy |
 
+The three capture shortcuts are defaults; change them in Preferences → Shortcuts.
+
 ## Project Structure
 
 ```text
@@ -128,11 +130,11 @@ Manual verification should cover:
 - Region capture opens the annotation editor with the correct image orientation.
 - Window capture selects real app windows, not desktop surfaces.
 - Full-screen capture works after Screen Recording permission is granted.
-- Save adds a screenshot to history.
+- Save writes the screenshot to `~/Downloads` and adds it to history.
 - Copy writes the screenshot to the clipboard.
 - Pin creates an always-on-top reference window.
 - Blur and pixelate annotations render into saved output.
-- History supports open, copy, copy path, show in Finder, and delete.
+- History supports open, copy, copy path, show in Finder, and delete (moves the file to the Trash).
 - Permissions UI correctly recovers after opening System Settings and rechecking access.
 
 ## License

@@ -30,7 +30,10 @@ protocol HistoryPersisting {
     var saveDirectory: URL { get }
     func saveHistory(_ history: [ScreenshotItem])
     func loadHistory() async -> [ScreenshotItem]
+    /// Deletes files, skipping any outside the app-owned store (see `isPathAllowed`).
     func removeFiles(atPaths paths: [String])
+    /// Moves a file to the Trash; used when the user explicitly deletes a history item.
+    func trashFile(atPath path: String)
     func isPathAllowed(_ path: String) -> Bool
 }
 

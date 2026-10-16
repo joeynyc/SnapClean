@@ -1,5 +1,4 @@
 import SwiftUI
-import Carbon
 
 @MainActor
 class AppDelegate: NSObject, NSApplicationDelegate {
@@ -8,7 +7,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     let appState = AppState()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        setupHotkeys()
+        appState.onHotkeysChanged = { [weak self] in
+            self?.registerHotkeys()
+        }
+        registerHotkeys()
         checkScreenRecordingPermission()
     }
 
@@ -16,36 +18,18 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         HotkeyManager.shared.unregisterAll()
     }
 
-    private func setupHotkeys() {
-        HotkeyManager.shared.register(
-            keyCode: UInt16(kVK_F1),
-            modifiers: [.command, .shift],
-            action: { [weak self] in
-                Task { @MainActor in
-                    self?.appState.startCapture(mode: .region)
-                }
-            }
-        )
+    private func registerHotkeys() {
+        HotkeyManager.shared.unregisterAll()
+        guard !appState.isRecordingShortcut else { return }
 
-        HotkeyManager.shared.register(
-            keyCode: UInt16(kVK_F2),
-            modifiers: [.command, .shift],
-            action: { [weak self] in
+        for mode in CaptureMode.allCases {
+            let shortcut = appState.shortcut(for: mode)
+            HotkeyManager.shared.register(keyCode: shortcut.keyCode, modifiers: shortcut.modifiers) { [weak self] in
                 Task { @MainActor in
-                    self?.appState.startCapture(mode: .window)
+                    self?.appState.startCapture(mode: mode)
                 }
             }
-        )
-
-        HotkeyManager.shared.register(
-            keyCode: UInt16(kVK_F3),
-            modifiers: [.command, .shift],
-            action: { [weak self] in
-                Task { @MainActor in
-                    self?.appState.startCapture(mode: .screen)
-                }
-            }
-        )
+        }
     }
 
     private func checkScreenRecordingPermission() {
