@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to coding agents (Claude Code, Codex) when working with code in this repository. `AGENTS.md` is a symlink to it.
 
 ## Project Overview
 
@@ -61,11 +61,11 @@ Hotkey actions call `AppState.startCapture(mode:)` directly; shortcuts default t
 
 ### View Hierarchy
 
-`MainWindow` is the primary container, conditionally showing `CaptureOverlay` (during capture) or `AnnotationCanvasView` (after capture) based on `AppState` flags. `AnnotationCanvas` uses SwiftUI `Canvas` for rendering annotations. `ToolbarView` provides annotation tool selection. Reusable styles (GlassButtonStyle, ToolButtonStyle, IconButtonStyle) live in `Views/Components/Styles.swift`.
+`MainWindow` is the primary container, conditionally showing `CaptureOverlay` (during capture) or `AnnotationCanvasView` (after capture) based on `AppState` flags. `AnnotationCanvas` uses SwiftUI `Canvas` for rendering annotations. `ToolbarView` holds the editor's tool menu and the color and line-width popovers. Use popovers, not `Menu`, for custom controls: `Menu` content is rendered as an `NSMenu`, which can't host sliders or color pickers.
 
 ### Data Flow
 
-1. Hotkey or menu action → `NotificationCenter` post → `AppState.startCapture(mode:)`
+1. Hotkey or menu action → `AppState.startCapture(mode:)`
 2. `CaptureOverlay` performs capture via `ScreenCaptureService` → `AppState.handleCapturedImage(_:)`
 3. User annotates in `AnnotationCanvasView` → annotations stored in `AppState.annotations` with undo/redo stacks
 4. Save → `ScreenCaptureService.saveImage(_:)` → `AppState.addToHistory(path:image:)` → persisted via `ScreenshotHistoryManager`
@@ -75,6 +75,6 @@ Hotkey actions call `AppState.startCapture(mode:)` directly; shortcuts default t
 - **XcodeGen**: `project.yml` is the source of truth for project structure. Run `xcodegen generate` after modifying it.
 - **Bundle ID**: `com.snapclean.app`
 - **Code signing**: `project.yml` is configured for Apple Development signing with team `QNGW24R2UL`. Update `DEVELOPMENT_TEAM` before building under another Apple Developer account.
-- **Entitlements**: App Sandbox enabled with read-only user-selected file access, Downloads read/write access, and network client access.
+- **Entitlements**: App Sandbox enabled with read-only user-selected file access, and Downloads read/write access.
 - **Required system permissions**: Screen Recording, Accessibility (for global hotkeys).
 - **Permission troubleshooting**: If Screen Recording appears enabled in System Settings but SnapClean still reports blocked, quit SnapClean, reset/re-add the exact built `SnapClean.app` in Screen & System Audio Recording, then relaunch. Stable Apple Development signing prevents repeated prompts after normal rebuilds.

@@ -2,7 +2,6 @@ import SwiftUI
 
 @MainActor
 class AppDelegate: NSObject, NSApplicationDelegate {
-    private var aboutWindow: NSWindow?
     /// Owned here rather than by a window so global hotkeys work even when the main window was never opened.
     let appState = AppState()
 

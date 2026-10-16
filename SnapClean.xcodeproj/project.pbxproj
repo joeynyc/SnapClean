@@ -377,13 +377,10 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = SnapClean/SnapClean.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
-				ENABLE_HARDENED_RUNTIME = YES;
 				INFOPLIST_FILE = SnapClean/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
-				NOTARIZATION_API_TYPE = use.xcode.com;
 				PRODUCT_BUNDLE_IDENTIFIER = com.snapclean.app;
 				PRODUCT_NAME = SnapClean;
-				PRODUCT_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
 				SDKROOT = macosx;
 			};
 			name = Debug;
@@ -465,13 +462,10 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = SnapClean/SnapClean.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
-				ENABLE_HARDENED_RUNTIME = YES;
 				INFOPLIST_FILE = SnapClean/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
-				NOTARIZATION_API_TYPE = use.xcode.com;
 				PRODUCT_BUNDLE_IDENTIFIER = com.snapclean.app;
 				PRODUCT_NAME = SnapClean;
-				PRODUCT_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
 				SDKROOT = macosx;
 			};
 			name = Release;

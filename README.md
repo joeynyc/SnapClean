@@ -1,146 +1,131 @@
+<div align="center">
+
+<img src="SnapClean/Resources/Assets.xcassets/AppIcon.appiconset/icon_128x128@2x.png" width="128" alt="SnapClean app icon">
+
 # SnapClean
 
-SnapClean is a native macOS screenshot app for capturing, annotating, saving, and pinning screenshots. It is built with SwiftUI and Apple frameworks only, with no third-party runtime dependencies.
+**Snap it. Mark it up. Ship it.**<br>
+A fast, native macOS screenshot tool that lives in your menu bar.
 
-![SnapClean app icon](SnapClean/Resources/Assets.xcassets/AppIcon.appiconset/icon_128x128@2x.png)
+[![CI](https://github.com/joeynyc/SnapClean/actions/workflows/ci.yml/badge.svg)](https://github.com/joeynyc/SnapClean/actions/workflows/ci.yml)
+![macOS 14+](https://img.shields.io/badge/macOS-14%2B-000000?logo=apple&logoColor=white)
+![Swift](https://img.shields.io/badge/Swift-5.9-F05138?logo=swift&logoColor=white)
+![Dependencies](https://img.shields.io/badge/dependencies-zero-6E56CF)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
-## Features
+<img src="docs/images/editor.png" width="820" alt="The SnapClean editor with an arrow and a box drawn on a captured chart">
 
-- **Flexible capture modes:** Capture a selected region, a specific window, or the full screen.
-- **Modern capture pipeline:** Uses ScreenCaptureKit for current macOS screen capture behavior.
-- **Annotation tools:** Add arrows, text, rectangles, ovals, lines, freehand drawings, blur, and pixelation.
-- **Undo and redo:** Iterate on annotations before saving or copying.
-- **Screenshot history:** Saves screenshots to `~/Downloads` and keeps a history of the latest 50. Clearing history never deletes your files; deleting a single item moves it to the Trash.
-- **Pin to screen:** Float a screenshot above other windows for reference.
-- **Menu bar access:** Start captures and open history from the macOS menu bar.
-- **Native macOS windows:** Dedicated windows for the main app, history, preferences, and about view.
+</div>
 
-## Requirements
+## ✨ What it does
 
-- macOS 14.0 Sonoma or later
-- Xcode 26.0 or later
-- XcodeGen for project generation
-- Screen Recording permission for capture
-- Accessibility permission for global keyboard shortcuts
+|  |  |
+| --- | --- |
+| 🎯 **Capture anything** | A region, a single window, or the whole screen, using ScreenCaptureKit. |
+| ✏️ **Mark it up** | Arrows, text, boxes, ovals, lines, freehand, plus blur and pixelate for anything private. |
+| ↩️ **Change your mind** | Full undo and redo while you annotate. |
+| 📥 **Lands in Downloads** | Saves go straight to `~/Downloads` and never overwrite an existing file. |
+| 🕘 **History** | Your last 50 shots, ready to copy, reveal in Finder, or pin. |
+| 📌 **Pin to screen** | Float a screenshot above every app while you work from it. |
+| ⌨️ **Your shortcuts** | Record your own global hotkeys in Preferences. |
+| ⏱️ **Timer or instant** | Use a 3, 5, or 10-second countdown for full-screen shots, or turn it off. |
 
-Install XcodeGen with Homebrew:
+<div align="center">
+<img src="docs/images/welcome.png" width="560" alt="The SnapClean welcome window with region, window, and screen capture buttons">
+</div>
 
-```bash
-brew install xcodegen
-```
-
-## Build From Source
-
-Generate the Xcode project after cloning and any time `project.yml` changes:
-
-```bash
-xcodegen generate
-```
-
-Build, test, and run from the command line:
-
-```bash
-./build.sh build
-./build.sh test
-./build.sh run
-```
-
-Other build commands:
-
-```bash
-./build.sh clean
-./build.sh archive
-```
-
-`./build.sh run` launches the newest Debug build from Xcode DerivedData so stale archives are not accidentally opened.
-
-## Continuous Integration
-
-GitHub Actions runs the same generated-project test path used locally:
-
-```bash
-xcodegen generate
-./build.sh test
-```
-
-The workflow lives at `.github/workflows/ci.yml`.
-
-## Code Signing
-
-The project is configured for Apple Development signing in `project.yml`.
-
-```yaml
-CODE_SIGN_IDENTITY: Apple Development
-```
-
-If you are building under a different Apple Developer account, update `DEVELOPMENT_TEAM` in `project.yml`, run `xcodegen generate`, and rebuild.
-
-Stable signing matters for macOS privacy permissions. If the app is built with ad-hoc signing, macOS may repeatedly ask for Screen Recording access after rebuilds.
-
-## Permissions
-
-SnapClean needs Screen Recording permission to capture your display. It may also request Accessibility permission for global hotkeys.
-
-To grant Screen Recording permission:
-
-1. Open System Settings.
-2. Go to Privacy & Security.
-3. Open Screen & System Audio Recording.
-4. Enable SnapClean.
-5. Quit and reopen SnapClean.
-
-If SnapClean still reports that Screen Recording is blocked, remove or toggle the SnapClean entry in System Settings, add the current built app again, and relaunch.
-
-## Keyboard Shortcuts
+## ⌨️ Shortcuts
 
 | Shortcut | Action |
 | --- | --- |
-| Cmd+Shift+F1 | Capture Region |
-| Cmd+Shift+F2 | Capture Window |
-| Cmd+Shift+F3 | Capture Screen |
-| Cmd+Z | Undo |
-| Cmd+Shift+Z | Redo |
-| Cmd+S | Save |
-| Cmd+C | Copy |
+| <kbd>⇧</kbd><kbd>⌘</kbd><kbd>F1</kbd> | Capture region |
+| <kbd>⇧</kbd><kbd>⌘</kbd><kbd>F2</kbd> | Capture window |
+| <kbd>⇧</kbd><kbd>⌘</kbd><kbd>F3</kbd> | Capture screen |
+| <kbd>⌘</kbd><kbd>Z</kbd> / <kbd>⇧</kbd><kbd>⌘</kbd><kbd>Z</kbd> | Undo / redo |
+| <kbd>⌘</kbd><kbd>C</kbd> | Copy |
+| <kbd>⌘</kbd><kbd>S</kbd> | Save |
+| <kbd>Esc</kbd> | Cancel a capture |
 
-The three capture shortcuts are defaults; change them in Preferences → Shortcuts.
+You can change the capture shortcuts in **Preferences → Shortcuts**.
 
-## Project Structure
+## 🚀 Build and run
+
+You need macOS 14 Sonoma or later, Xcode 26 or later, and [XcodeGen](https://github.com/yonaskolb/XcodeGen).
+
+```bash
+brew install xcodegen
+git clone https://github.com/joeynyc/SnapClean.git && cd SnapClean
+xcodegen generate
+./build.sh run
+```
+
+| Command | What it does |
+| --- | --- |
+| `./build.sh build` | Debug build |
+| `./build.sh test` | Run the unit tests (CI runs the same thing) |
+| `./build.sh run` | Build and launch the newest Debug build |
+| `./build.sh archive` | Release archive in `build/` |
+| `./build.sh clean` | Clean build products |
+
+Run `xcodegen generate` again whenever `project.yml` changes. The Xcode project is generated from it.
+
+<details>
+<summary><b>🔐 Permissions</b></summary>
+
+SnapClean needs **Screen Recording** permission to capture your screen. It may also ask for **Accessibility** permission so global shortcuts work.
+
+1. Open **System Settings → Privacy & Security → Screen & System Audio Recording**.
+2. Turn on **SnapClean**.
+3. Quit SnapClean and open it again.
+
+If SnapClean still says Screen Recording is blocked, remove its entry from that list. Then add the app you just built and relaunch it.
+
+</details>
+
+<details>
+<summary><b>✍️ Code signing</b></summary>
+
+`project.yml` signs the app with Apple Development and a fixed team. If you build under a different Apple Developer account, change `DEVELOPMENT_TEAM`, then run `xcodegen generate` again.
+
+Keep the signing identity the same between builds. macOS links privacy permissions to the app's signature, so ad-hoc builds can ask for Screen Recording again after every rebuild.
+
+</details>
+
+<details>
+<summary><b>🗂️ Project layout</b></summary>
 
 ```text
 SnapClean/
-  Models/          App state and screenshot models
-  Services/        Capture, hotkey, and persistence services
-  Views/           SwiftUI windows, overlays, and annotation UI
-SnapCleanTests/    Unit tests
-project.yml        XcodeGen project definition
-build.sh           Build, test, run, archive, and clean helper
+  Models/       AppState, screenshot and annotation models, hotkey shortcuts
+  Services/     ScreenCaptureKit capture, image effects, global hotkeys
+  Views/        SwiftUI windows, capture overlay, annotation editor
+  Windows/      AppKit controllers for the capture overlay and the floating pin
+  Protocols/    Service protocols, used to swap in test doubles
+SnapCleanTests/ Unit tests
+project.yml     XcodeGen project definition
+build.sh        Build, test, run, archive, clean
 ```
 
-## Testing
+</details>
 
-Run the unit test suite with:
+<details>
+<summary><b>🧪 Manual test checklist</b></summary>
 
-```bash
-./build.sh test
-```
+- Region, window, and full-screen captures open in the editor with the right orientation and scale.
+- Window capture selects app windows, not the desktop.
+- Blur and pixelate show up in the saved and copied image.
+- Save writes to `~/Downloads` and adds the shot to History.
+- Pin floats above other apps and closes cleanly.
+- History can open, copy, copy the path, show in Finder, and delete. Deleting moves the file to the Trash.
+- A custom shortcut works globally, and the old shortcut stops working.
+- The permissions screen recovers after you grant access in System Settings.
 
-Manual verification should cover:
+</details>
 
-- Region capture opens the annotation editor with the correct image orientation.
-- Window capture selects real app windows, not desktop surfaces.
-- Full-screen capture works after Screen Recording permission is granted.
-- Save writes the screenshot to `~/Downloads` and adds it to history.
-- Copy writes the screenshot to the clipboard.
-- Pin creates an always-on-top reference window.
-- Blur and pixelate annotations render into saved output.
-- History supports open, copy, copy path, show in Finder, and delete (moves the file to the Trash).
-- Permissions UI correctly recovers after opening System Settings and rechecking access.
+## 📦 Releasing
 
-## License
+See [docs/RELEASE.md](docs/RELEASE.md) for the release checklist and notes on notarization.
 
-SnapClean is available under the MIT License. See [LICENSE](LICENSE).
+## 📄 License
 
-## Release Notes
-
-See [docs/RELEASE.md](docs/RELEASE.md) for the release checklist, signing notes, and distribution guidance.
+SnapClean is released under the [MIT License](LICENSE).
