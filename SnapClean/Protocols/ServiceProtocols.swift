@@ -12,6 +12,10 @@ protocol ScreenCapturing {
     func getWindowList() async -> [(id: CGWindowID, name: String, bounds: CGRect)]
     func saveImage(_ image: NSImage, to folder: URL?) -> String?
     func copyToClipboard(_ image: NSImage)
+    /// Same as `saveImage(_:to:)` but encodes and writes off the calling actor.
+    func saveImageInBackground(_ image: NSImage, to folder: URL?) async -> String?
+    /// Same as `copyToClipboard(_:)` but encodes off the calling actor.
+    func copyToClipboardInBackground(_ image: NSImage) async
     func openInFinder(_ path: String)
 }
 
@@ -19,6 +23,15 @@ protocol ScreenCapturing {
 extension ScreenCapturing {
     func saveImage(_ image: NSImage) -> String? {
         saveImage(image, to: nil)
+    }
+
+    // Defaults for conformers (e.g. test mocks) that have no background path.
+    func saveImageInBackground(_ image: NSImage, to folder: URL?) async -> String? {
+        saveImage(image, to: folder)
+    }
+
+    func copyToClipboardInBackground(_ image: NSImage) async {
+        copyToClipboard(image)
     }
 }
 

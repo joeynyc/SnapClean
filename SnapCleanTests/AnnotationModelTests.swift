@@ -338,7 +338,7 @@ final class AppStateEditorTests: XCTestCase {
         XCTAssertEqual(appState.annotations.elements.map(\.text), ["Typing"])
     }
 
-    func testFailedSaveFromEditorIsReportedAndKeepsWork() {
+    func testFailedSaveFromEditorIsReportedAndKeepsWork() async {
         capture.saveResult = nil
         appState.capture.capturedImage = image()
         appState.capture.showAnnotationCanvas = true
@@ -347,6 +347,7 @@ final class AppStateEditorTests: XCTestCase {
         ))
 
         appState.saveAnnotation()
+        await appState.saveTask?.value
 
         XCTAssertEqual(
             appState.capture.lastCaptureError,
@@ -356,11 +357,13 @@ final class AppStateEditorTests: XCTestCase {
         XCTAssertEqual(appState.annotations.elements.count, 1)
     }
 
-    func testSuccessfulSaveClosesEditor() {
+    func testSuccessfulSaveClosesEditor() async {
         appState.capture.capturedImage = image()
         appState.capture.showAnnotationCanvas = true
 
         appState.saveAnnotation()
+        appState.saveAnnotation() // ignored while the first is running
+        await appState.saveTask?.value
 
         XCTAssertNil(appState.capture.lastCaptureError)
         XCTAssertFalse(appState.capture.showAnnotationCanvas)

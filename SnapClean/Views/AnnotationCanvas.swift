@@ -266,9 +266,7 @@ struct AnnotationCanvasView: View {
             return nil
         }
         if flags == .command && key == "c" {
-            if let img = appState.currentEditableImage() {
-                appState.capture.screenCapture.copyToClipboard(img)
-            }
+            appState.copyEditableImage()
             return nil
         }
         return event
@@ -500,8 +498,7 @@ struct BottomToolbarView: View {
                     .frame(height: 20)
 
                 ActionButton(icon: "doc.on.doc", label: "Copy") {
-                    guard let image = appState.currentEditableImage() else { return }
-                    appState.capture.screenCapture.copyToClipboard(image)
+                    appState.copyEditableImage()
                 }
 
                 ActionButton(icon: "square.and.arrow.down", label: "Save") {

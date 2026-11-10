@@ -13,12 +13,6 @@ private let captureLogger = Logger(subsystem: "com.snapclean.app", category: "ca
 typealias CapturableWindow = (id: CGWindowID, name: String, bounds: CGRect)
 
 class ScreenCaptureService: ScreenCapturing {
-    private let dateFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd_HHmmss"
-        return formatter
-    }()
-
     private let selfPID = ProcessInfo.processInfo.processIdentifier
 
     /// - Parameter rect: Region in global display space (top-left origin of the primary display, points);
@@ -234,18 +228,27 @@ class ScreenCaptureService: ScreenCapturing {
     }
 
     func saveImage(_ image: NSImage, to folder: URL? = nil) -> String? {
+        guard let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else { return nil }
+        return Self.writePNG(cgImage, to: folder)
+    }
+
+    /// Takes the CGImage on the calling actor, then encodes and writes the PNG on a background thread.
+    func saveImageInBackground(_ image: NSImage, to folder: URL?) async -> String? {
+        guard let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else { return nil }
+        return await Task.detached(priority: .userInitiated) { Self.writePNG(cgImage, to: folder) }.value
+    }
+
+    nonisolated private static func writePNG(_ cgImage: CGImage, to folder: URL?) -> String? {
         let saveFolder = folder ?? ScreenshotHistoryManager.defaultSaveDirectory
-        let baseName = "SnapClean_\(dateFormatter.string(from: Date()))"
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd_HHmmss"
+        let baseName = "SnapClean_\(formatter.string(from: Date()))"
         // Timestamps have one-second resolution; never overwrite an earlier save from the same second.
         var fileURL = saveFolder.appendingPathComponent("\(baseName).png")
         var suffix = 2
         while FileManager.default.fileExists(atPath: fileURL.path) {
             fileURL = saveFolder.appendingPathComponent("\(baseName) \(suffix).png")
             suffix += 1
-        }
-
-        guard let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
-            return nil
         }
 
         let rep = NSBitmapImageRep(cgImage: cgImage)
@@ -269,6 +272,24 @@ class ScreenCaptureService: ScreenCapturing {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
         pasteboard.writeObjects([image])
+    }
+
+    /// Encodes PNG off the main thread, then writes the pasteboard on the calling actor.
+    func copyToClipboardInBackground(_ image: NSImage) async {
+        guard let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
+            copyToClipboard(image)
+            return
+        }
+        let data = await Task.detached(priority: .userInitiated) {
+            NSBitmapImageRep(cgImage: cgImage).representation(using: .png, properties: [:])
+        }.value
+        guard let data else {
+            copyToClipboard(image)
+            return
+        }
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setData(data, forType: .png)
     }
 
     func openInFinder(_ path: String) {
@@ -496,58 +517,19 @@ extension NSImage {
 
     /// Pixelates `rect` (image points, top-left origin). `amount` is the block size in points.
     func pixelate(amount: CGFloat, rect: CGRect) -> NSImage? {
-        applyingRegionEffect(rect: rect) { regionInput, pixelRect, pixelScale in
-            guard let filter = CIFilter(name: "CIPixellate") else { return nil }
-            filter.setValue(regionInput, forKey: kCIInputImageKey)
-            filter.setValue(max(amount * pixelScale, 1), forKey: kCIInputScaleKey)
-            // Anchor the block grid to the region instead of the filter's default (150, 150).
-            filter.setValue(CIVector(x: pixelRect.minX, y: pixelRect.minY), forKey: kCIInputCenterKey)
-            return filter.outputImage
-        }
+        applyingSingleEffect(RegionEffect(kind: .pixelate, rect: rect, amount: amount))
     }
 
     /// Blurs `rect` (image points, top-left origin) strongly enough to redact text.
     /// The radius scales with the image's pixel density; see `CaptureGeometry.blurRadiusPixels`.
     func blur(amount: CGFloat, rect: CGRect) -> NSImage? {
-        applyingRegionEffect(rect: rect) { regionInput, _, pixelScale in
-            guard let filter = CIFilter(name: "CIGaussianBlur") else { return nil }
-            filter.setValue(regionInput, forKey: kCIInputImageKey)
-            filter.setValue(
-                CaptureGeometry.blurRadiusPixels(amount: amount, pixelScale: pixelScale),
-                forKey: kCIInputRadiusKey
-            )
-            return filter.outputImage
-        }
+        applyingSingleEffect(RegionEffect(kind: .blur, rect: rect, amount: amount))
     }
 
-    /// Runs `effect` on the pixels inside `rect` only and composites the result back over the image.
-    /// The effect input is the region cropped and edge-clamped, so the result only depends on pixels inside
-    /// the region and never fades to transparent at the region or image edges.
-    private func applyingRegionEffect(
-        rect: CGRect,
-        effect: (_ regionInput: CIImage, _ pixelRect: CGRect, _ pixelScale: CGFloat) -> CIImage?
-    ) -> NSImage? {
-        guard let cgImage = self.cgImage(forProposedRect: nil, context: nil, hints: nil) else { return nil }
-
-        let ciImage = CIImage(cgImage: cgImage)
-        guard let pixelRect = CaptureGeometry.imagePixelRect(
-            forTopLeftPointRect: rect,
-            imagePointSize: size,
-            imagePixelSize: ciImage.extent.size
-        ) else {
-            return nil
-        }
-
-        let pixelScale = max(ciImage.extent.width / size.width, ciImage.extent.height / size.height)
-        let regionInput = ciImage.cropped(to: pixelRect).clampedToExtent()
-        guard let output = effect(regionInput, pixelRect, pixelScale) else { return nil }
-
-        let composited = output.cropped(to: pixelRect).composited(over: ciImage)
-        guard let resultCGImage = sharedCIContext.createCGImage(composited, from: ciImage.extent) else {
-            return nil
-        }
-
-        return NSImage(cgImage: resultCGImage, size: self.size)
+    private func applyingSingleEffect(_ effect: RegionEffect) -> NSImage? {
+        guard let cgImage = self.cgImage(forProposedRect: nil, context: nil, hints: nil),
+              let result = ImageEffects.apply([effect], to: cgImage, pointSize: size) else { return nil }
+        return NSImage(cgImage: result, size: size)
     }
 
     func jpegThumbnailData(maxSize: NSSize, compression: CGFloat = 0.72) -> Data? {
@@ -567,5 +549,78 @@ extension NSImage {
         let scale = min(maxSize.width / size.width, maxSize.height / size.height)
         let target = NSSize(width: size.width * scale, height: size.height * scale)
         return resize(to: target)
+    }
+}
+
+// MARK: - Region effects
+
+/// A blur or pixelate applied to a rectangle of an image.
+struct RegionEffect: Sendable, Equatable {
+    enum Kind: Sendable { case blur, pixelate }
+    let kind: Kind
+    /// Image points, top-left origin.
+    let rect: CGRect
+    let amount: CGFloat
+}
+
+/// Thread-safe Core Image effect pipeline shared by export and the editor's live preview,
+/// so what the editor shows is what gets saved. Safe to call off the main thread.
+enum ImageEffects {
+    /// Applies `effects` in order and renders once. Returns nil when no effect applies (callers keep the original).
+    /// Each effect only depends on pixels inside its region (cropped and edge-clamped), so the result
+    /// never fades to transparent at the region or image edges.
+    nonisolated static func apply(_ effects: [RegionEffect], to cgImage: CGImage, pointSize: CGSize) -> CGImage? {
+        guard pointSize.width > 0, pointSize.height > 0 else { return nil }
+        let base = CIImage(cgImage: cgImage)
+        let pixelScale = max(base.extent.width / pointSize.width, base.extent.height / pointSize.height)
+        var current = base
+        var applied = false
+
+        for effect in effects {
+            guard effect.rect.width > 0, effect.rect.height > 0,
+                  let pixelRect = CaptureGeometry.imagePixelRect(
+                    forTopLeftPointRect: effect.rect,
+                    imagePointSize: pointSize,
+                    imagePixelSize: base.extent.size
+                  ) else { continue }
+
+            let regionInput = current.cropped(to: pixelRect).clampedToExtent()
+            let output: CIImage?
+            switch effect.kind {
+            case .pixelate:
+                let filter = CIFilter(name: "CIPixellate")
+                filter?.setValue(regionInput, forKey: kCIInputImageKey)
+                filter?.setValue(max(effect.amount * pixelScale, 1), forKey: kCIInputScaleKey)
+                // Anchor the block grid to the region instead of the filter's default (150, 150).
+                filter?.setValue(CIVector(x: pixelRect.minX, y: pixelRect.minY), forKey: kCIInputCenterKey)
+                output = filter?.outputImage
+            case .blur:
+                let filter = CIFilter(name: "CIGaussianBlur")
+                filter?.setValue(regionInput, forKey: kCIInputImageKey)
+                filter?.setValue(
+                    CaptureGeometry.blurRadiusPixels(amount: effect.amount, pixelScale: pixelScale),
+                    forKey: kCIInputRadiusKey
+                )
+                output = filter?.outputImage
+            }
+            guard let output else { continue }
+            current = output.cropped(to: pixelRect).composited(over: current)
+            applied = true
+        }
+
+        guard applied else { return nil }
+        return sharedCIContext.createCGImage(current, from: base.extent)
+    }
+}
+
+extension AnnotationElement {
+    /// The effect this annotation applies, if it is a blur or pixelate with a usable rect.
+    var regionEffect: RegionEffect? {
+        guard let rect = effectRect, rect.width > 0, rect.height > 0 else { return nil }
+        switch tool {
+        case .blur: return RegionEffect(kind: .blur, rect: rect, amount: effectAmount)
+        case .pixelate: return RegionEffect(kind: .pixelate, rect: rect, amount: effectAmount)
+        default: return nil
+        }
     }
 }

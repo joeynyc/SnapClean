@@ -205,17 +205,42 @@ final class AppState {
         capture.endCapture(showMainWindow: failure != nil || capture.wasMainWindowVisibleBeforeCapture)
     }
 
+    /// True while an editor save is encoding and writing; further save requests are ignored.
+    private(set) var isSaving = false
+    @ObservationIgnored private(set) var saveTask: Task<Void, Never>?
+
+    /// Saves the annotated image. Rendering stays on the main actor; PNG encoding and effects run in the background.
     func saveAnnotation() {
-        let imageToSave = currentEditableImage()
-        guard let imageToSave else { return }
-        guard let savedPath = capture.screenCapture.saveImage(imageToSave, to: history.historyManager.saveDirectory) else {
-            capture.lastCaptureError = .saveFailed(history.historyManager.saveDirectory.path)
+        guard !isSaving else { return }
+        isSaving = true
+        saveTask = Task { @MainActor in
+            await performSaveAnnotation()
+            isSaving = false
+        }
+    }
+
+    private func performSaveAnnotation() async {
+        let sourceImage = capture.capturedImage
+        guard let imageToSave = await currentEditableImageAsync() else { return }
+        let folder = history.historyManager.saveDirectory
+        guard let savedPath = await capture.screenCapture.saveImageInBackground(imageToSave, to: folder) else {
+            capture.lastCaptureError = .saveFailed(folder.path)
             appLogger.error("Failed to save annotation")
             return
         }
         history.addToHistory(path: savedPath, image: imageToSave, limit: historyLimit)
+        // A new capture may have replaced the editor's image while saving; leave that one alone.
+        guard capture.capturedImage === sourceImage else { return }
         annotations.resetAnnotationState()
         capture.showAnnotationCanvas = false
+    }
+
+    /// Copies the annotated image, doing the PNG encoding off the main thread.
+    func copyEditableImage() {
+        Task { @MainActor in
+            guard let image = await currentEditableImageAsync() else { return }
+            await capture.screenCapture.copyToClipboardInBackground(image)
+        }
     }
 
     func addToHistory(path: String, image: NSImage) {
@@ -260,7 +285,19 @@ final class AppState {
     /// Copy, Save and Pin include text that is still being typed.
     func currentEditableImage() -> NSImage? {
         annotations.commitTextDraft()
-        return renderAnnotatedImage() ?? capture.capturedImage
+        guard let plan = exportPlan() else { return capture.capturedImage }
+        let base = ImageEffects.apply(plan.effects, to: plan.cgImage, pointSize: plan.size)
+        return renderAnnotatedImage(plan, base: base) ?? capture.capturedImage
+    }
+
+    /// Like `currentEditableImage()`, but blur and pixelate run off the main thread.
+    func currentEditableImageAsync() async -> NSImage? {
+        annotations.commitTextDraft()
+        guard let plan = exportPlan() else { return capture.capturedImage }
+        let base = await Task.detached(priority: .userInitiated) {
+            ImageEffects.apply(plan.effects, to: plan.cgImage, pointSize: plan.size)
+        }.value
+        return renderAnnotatedImage(plan, base: base) ?? capture.capturedImage
     }
 
     // MARK: - Private Helpers
@@ -273,42 +310,40 @@ final class AppState {
         }
     }
 
-    @MainActor
-    private func renderAnnotatedImage() -> NSImage? {
-        guard let image = capture.capturedImage else { return nil }
-
-        let exportSize = image.size
-        guard exportSize.width > 0, exportSize.height > 0 else { return nil }
-
-        let exportRect = CGRect(origin: .zero, size: exportSize)
-        let scaledAnnotations = annotations.elements.map { $0.denormalized(in: exportRect) }
-
-        let processedImage = applyImageEffects(to: image, annotations: scaledAnnotations)
-        let visibleAnnotations = scaledAnnotations.filter { !$0.tool.isEffect }
-
-        let content = AnnotationExportView(image: processedImage, annotations: visibleAnnotations)
-            .frame(width: exportSize.width, height: exportSize.height)
-
-        let renderer = ImageRenderer(content: content)
-        renderer.scale = imageBackingScale(for: image)
-        return renderer.nsImage
+    private struct ExportPlan: @unchecked Sendable {
+        let image: NSImage
+        let cgImage: CGImage
+        let size: CGSize
+        let effects: [RegionEffect]
+        let visibleAnnotations: [AnnotationElement]
     }
 
-    private func applyImageEffects(to image: NSImage, annotations: [AnnotationElement]) -> NSImage {
-        annotations.reduce(image) { currentImage, element in
-            guard let effectRect = element.effectRect, effectRect.width > 0, effectRect.height > 0 else {
-                return currentImage
-            }
+    private func exportPlan() -> ExportPlan? {
+        guard let image = capture.capturedImage else { return nil }
+        let exportSize = image.size
+        guard exportSize.width > 0, exportSize.height > 0,
+              let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else { return nil }
 
-            switch element.tool {
-            case .blur:
-                return currentImage.blur(amount: element.effectAmount, rect: effectRect) ?? currentImage
-            case .pixelate:
-                return currentImage.pixelate(amount: element.effectAmount, rect: effectRect) ?? currentImage
-            default:
-                return currentImage
-            }
-        }
+        let exportRect = CGRect(origin: .zero, size: exportSize)
+        let scaled = annotations.elements.map { $0.denormalized(in: exportRect) }
+        return ExportPlan(
+            image: image,
+            cgImage: cgImage,
+            size: exportSize,
+            effects: scaled.compactMap(\.regionEffect),
+            visibleAnnotations: scaled.filter { !$0.tool.isEffect }
+        )
+    }
+
+    /// Draws the visible annotations over the effect-processed base. ImageRenderer needs the main actor.
+    private func renderAnnotatedImage(_ plan: ExportPlan, base: CGImage?) -> NSImage? {
+        let processedImage = base.map { NSImage(cgImage: $0, size: plan.size) } ?? plan.image
+        let content = AnnotationExportView(image: processedImage, annotations: plan.visibleAnnotations)
+            .frame(width: plan.size.width, height: plan.size.height)
+
+        let renderer = ImageRenderer(content: content)
+        renderer.scale = imageBackingScale(for: plan.image)
+        return renderer.nsImage
     }
 
     private func imageBackingScale(for image: NSImage) -> CGFloat {
