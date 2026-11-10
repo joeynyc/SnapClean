@@ -92,6 +92,8 @@ struct HistoryItemView: View {
                 }
             }
             .buttonStyle(.plain)
+            // Click pins it; dragging drops the saved file into Finder, Mail, Slack, ...
+            .onDrag { ScreenshotDragItem.provider(forSavedFileAtPath: item.filePath) }
             // Keyed on the data: new history items get their thumbnail after they first appear.
             .task(id: item.thumbnail) {
                 guard let data = item.thumbnail else { return }

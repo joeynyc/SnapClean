@@ -110,6 +110,13 @@ enum ScreenshotDragItem {
         return provider
     }
 
+    /// A provider for a screenshot already saved on disk (e.g. a History item). Returns an empty
+    /// provider, making the drag a no-op, if the file is gone.
+    static func provider(forSavedFileAtPath path: String) -> NSItemProvider {
+        guard FileManager.default.fileExists(atPath: path) else { return NSItemProvider() }
+        return provider(forFileAt: URL(fileURLWithPath: path))
+    }
+
     /// Exports `image` to a temporary PNG and returns a provider for it. Returns an empty provider
     /// if the export fails, which makes the drag a no-op.
     static func provider(for image: NSImage?, exporter: TemporaryShareFile = TemporaryShareFile()) -> NSItemProvider {

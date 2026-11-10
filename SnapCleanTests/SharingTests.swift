@@ -91,6 +91,24 @@ final class ShareExportTests: XCTestCase {
         wait(for: [loaded], timeout: 5)
     }
 
+    func testHistoryDragUsesTheSavedFile() throws {
+        let saved = try XCTUnwrap(TemporaryShareFile(root: root).write(makeImage()))
+        let provider = ScreenshotDragItem.provider(forSavedFileAtPath: saved.path)
+        XCTAssertTrue(provider.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier))
+
+        let loaded = expectation(description: "file url")
+        _ = provider.loadObject(ofClass: NSURL.self) { object, _ in
+            XCTAssertEqual((object as? URL)?.standardizedFileURL, saved.standardizedFileURL)
+            loaded.fulfill()
+        }
+        wait(for: [loaded], timeout: 5)
+    }
+
+    func testHistoryDragOfDeletedFileIsEmpty() {
+        let provider = ScreenshotDragItem.provider(forSavedFileAtPath: root.appendingPathComponent("gone.png").path)
+        XCTAssertTrue(provider.registeredTypeIdentifiers.isEmpty)
+    }
+
     func testDragProviderForMissingImageIsEmpty() {
         let provider = ScreenshotDragItem.provider(for: nil, exporter: TemporaryShareFile(root: root))
         XCTAssertTrue(provider.registeredTypeIdentifiers.isEmpty)
