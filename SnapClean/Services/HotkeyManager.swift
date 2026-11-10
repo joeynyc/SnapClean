@@ -32,7 +32,7 @@ class HotkeyManager: HotkeyRegistering {
         defer { hotkeyAccessLock.unlock() }
 
         if let existingID = signatureToHotkeyID[signature] {
-            unregister(hotkeyID: existingID)
+            unregisterLocked(hotkeyID: existingID)
         }
 
         installEventHandlerIfNeeded()
@@ -63,21 +63,20 @@ class HotkeyManager: HotkeyRegistering {
 
     func unregister(keyCode: UInt16) {
         hotkeyAccessLock.lock()
-        let matching = signatureToHotkeyID.filter { $0.key.keyCode == keyCode }.map(\.value)
-        hotkeyAccessLock.unlock()
+        defer { hotkeyAccessLock.unlock() }
 
+        let matching = signatureToHotkeyID.filter { $0.key.keyCode == keyCode }.map(\.value)
         for hotkeyID in matching {
-            unregister(hotkeyID: hotkeyID)
+            unregisterLocked(hotkeyID: hotkeyID)
         }
     }
 
     func unregisterAll() {
         hotkeyAccessLock.lock()
-        let idsToUnregister = Array(hotkeyActions.keys)
-        hotkeyAccessLock.unlock()
+        defer { hotkeyAccessLock.unlock() }
 
-        for hotkeyID in idsToUnregister {
-            unregister(hotkeyID: hotkeyID)
+        for hotkeyID in Array(hotkeyActions.keys) {
+            unregisterLocked(hotkeyID: hotkeyID)
         }
         if let eventHandlerRef {
             RemoveEventHandler(eventHandlerRef)
@@ -133,10 +132,8 @@ class HotkeyManager: HotkeyRegistering {
         return OSStatus(eventNotHandledErr)
     }
 
-    private func unregister(hotkeyID: UInt32) {
-        hotkeyAccessLock.lock()
-        defer { hotkeyAccessLock.unlock() }
-
+    /// Caller must hold `hotkeyAccessLock`.
+    private func unregisterLocked(hotkeyID: UInt32) {
         guard let hotkeyRef = hotkeyRefs[hotkeyID] else { return }
         UnregisterEventHotKey(hotkeyRef)
         hotkeyRefs.removeValue(forKey: hotkeyID)

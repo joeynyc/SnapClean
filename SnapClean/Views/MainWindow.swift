@@ -23,6 +23,33 @@ struct MainWindow: View {
                 appState.capture.mainWindow = window
             }
         )
+        .alert(
+            appState.capture.lastCaptureError?.alertTitle ?? "",
+            isPresented: Binding(
+                get: { appState.capture.lastCaptureError != nil },
+                set: { if !$0 { appState.capture.lastCaptureError = nil } }
+            ),
+            presenting: appState.capture.lastCaptureError
+        ) { error in
+            if error == .permissionDenied {
+                Button("Open Settings") {
+                    appState.capture.openScreenCaptureSettings()
+                }
+            }
+            Button("OK", role: .cancel) {}
+        } message: { error in
+            Text(error.errorDescription ?? "")
+        }
+    }
+}
+
+private extension CaptureError {
+    var alertTitle: String {
+        switch self {
+        case .permissionDenied: return "Screen Recording Permission Needed"
+        case .captureFailed: return "Couldn’t Capture Screenshot"
+        case .saveFailed: return "Couldn’t Save Screenshot"
+        }
     }
 }
 
@@ -70,7 +97,6 @@ struct AboutView: View {
 
 struct WelcomeView: View {
     @Environment(AppState.self) var appState
-    @State private var selectedTab = 0
 
     var body: some View {
         VStack(spacing: 0) {
@@ -318,8 +344,7 @@ struct HistoryThumbnailView: View {
                 let path = item.filePath
                 let loaded = await Task.detached(priority: .userInitiated) { NSImage(contentsOfFile: path) }.value
                 if let image = loaded {
-                    appState.pinnedImage = image
-                    appState.showPinWindow = true
+                    appState.pinToScreen(image, sourcePath: path)
                 }
             }
         } label: {
@@ -342,10 +367,12 @@ struct HistoryThumbnailView: View {
             }
         }
         .buttonStyle(.plain)
-        // Keyed on the data: new history items get their thumbnail after they first appear.
-        .task(id: item.thumbnail) {
-            guard let data = item.thumbnail else { return }
-            thumbnailImage = await Task.detached(priority: .utility) { NSImage(data: data) }.value
+        // Click pins it; dragging drops the saved file into Finder, Mail, Slack, ...
+        .onDrag { ScreenshotDragItem.provider(forSavedFileAtPath: item.filePath) }
+        // New items get their thumbnail file shortly after they appear; the revision triggers a reload.
+        .task(id: appState.history.thumbnailRevisions[item.id] ?? 0) {
+            let url = appState.history.historyManager.thumbnailURL(for: item.id)
+            thumbnailImage = await Task.detached(priority: .utility) { NSImage(contentsOf: url) }.value
         }
     }
 }

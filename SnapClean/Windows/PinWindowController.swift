@@ -13,12 +13,29 @@ final class PinWindowController: NSObject, NSWindowDelegate {
         self.panel = panel
 
         panel.contentView = NSHostingView(rootView: PinWindow().environment(appState))
+        setTransparentBackground(appState.isTransparentBackground)
         panel.setContentSize(contentSize(for: image, on: NSScreen.main))
         if isNewPanel {
             panel.center()
         }
         panel.orderFrontRegardless()
         panel.makeKey()
+    }
+
+    /// Transparent: only the image floats (clear, non-opaque, no window shadow). Otherwise a solid window.
+    func setTransparentBackground(_ transparent: Bool) {
+        isTransparent = transparent
+        guard let panel else { return }
+        applyBackground(to: panel)
+    }
+
+    private var isTransparent = false
+
+    private func applyBackground(to panel: NSPanel) {
+        panel.isOpaque = !isTransparent
+        panel.backgroundColor = isTransparent ? .clear : .windowBackgroundColor
+        panel.hasShadow = !isTransparent
+        panel.invalidateShadow()
     }
 
     func hide() {
@@ -48,8 +65,14 @@ final class PinWindowController: NSObject, NSWindowDelegate {
         panel.hidesOnDeactivate = false
         panel.isReleasedWhenClosed = false
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-        panel.minSize = NSSize(width: 240, height: 180)
+        // The panel can't minimize or zoom; hide those buttons so only Close sits in the corner.
+        panel.standardWindowButton(.miniaturizeButton)?.isHidden = true
+        panel.standardWindowButton(.zoomButton)?.isHidden = true
+        // Wide enough for the right-aligned hover toolbar to clear the Close button.
+        panel.minSize = NSSize(width: 330, height: 180)
+        panel.isMovableByWindowBackground = true
         panel.delegate = self
+        applyBackground(to: panel)
         return panel
     }
 
@@ -61,7 +84,7 @@ final class PinWindowController: NSObject, NSWindowDelegate {
 
         let scale = min(maxSize.width / image.size.width, maxSize.height / image.size.height, 1)
         return NSSize(
-            width: max(image.size.width * scale, 240),
+            width: max(image.size.width * scale, 330),
             height: max(image.size.height * scale, 180)
         )
     }

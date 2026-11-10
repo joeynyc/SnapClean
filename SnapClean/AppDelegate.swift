@@ -10,10 +10,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             self?.registerHotkeys()
         }
         registerHotkeys()
-        checkScreenRecordingPermission()
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        // A capture still showing as a floating thumbnail is saved, as it would be on timeout.
+        appState.floatingThumbnail.finish(.appTerminating)
         HotkeyManager.shared.unregisterAll()
     }
 
@@ -29,9 +30,5 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 }
             }
         }
-    }
-
-    private func checkScreenRecordingPermission() {
-        _ = CGPreflightScreenCaptureAccess()
     }
 }

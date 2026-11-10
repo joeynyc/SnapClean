@@ -41,25 +41,30 @@ Unit tests live in `SnapCleanTests/`. GitHub Actions runs `xcodegen generate` an
 
 ### App Entry & Lifecycle
 
-`AppDelegate` (via `@NSApplicationDelegateAdaptor`) owns the single `AppState` instance, registers global hotkeys, and checks screen recording permission. `SnapCleanApp` (@main) declares the main `Window` scene (id `main`), the History and About window groups, the `MenuBarExtra`, and Settings, injecting `appDelegate.appState` into each. Owning `AppState` in the delegate keeps hotkeys working even when no window has been opened.
+`AppDelegate` (via `@NSApplicationDelegateAdaptor`) owns the single `AppState` instance and registers global hotkeys. `SnapCleanApp` (@main) declares the main `Window` scene (id `main`), the History and About window groups, the `MenuBarExtra`, and Settings, injecting `appDelegate.appState` into each. Owning `AppState` in the delegate keeps hotkeys working even when no window has been opened.
 
 ### Communication Pattern
 
-Hotkey actions call `AppState.startCapture(mode:)` directly; shortcuts default to ⇧⌘F1/F2/F3 and can be changed in Preferences. `AppState` observes `NSApplication.didBecomeActiveNotification` in `setupNotifications()` to refresh permission status. Because `AppState` can't call SwiftUI's `openWindow`, the menu bar icon's label view hands it an `openMainWindow` closure, used when a capture finishes while the main window is closed. Pinned screenshots are shown by `PinWindowController` (Windows/) in a floating `NSPanel`, driven by `AppState.showPinWindow`/`pinnedImage`.
+Hotkey actions call `AppState.startCapture(mode:)` directly; shortcuts default to ⇧⌘F1/F2/F3 and can be changed in Preferences. `AppState` observes `NSApplication.didBecomeActiveNotification` in `setupNotifications()` to refresh permission status. Because `AppState` can't call SwiftUI's `openWindow`, the menu bar icon's label view hands it an `openMainWindow` closure, used when a capture finishes while the main window is closed. Pinned screenshots are shown by `PinWindowController` (Windows/) in a floating `NSPanel`, driven by `AppState.showPinWindow`/`pinnedImage`. The pin API is `AppState.pinToScreen(_:sourcePath:)`, `closePinnedImage`, `savePinnedImage` and `revealPinnedImage`.
 
-### Key Types in Screenshot.swift
+### Sharing and the floating thumbnail
 
-- `AppState` — centralized observable state; owns `ScreenCaptureService` and `ScreenshotHistoryManager` instances
-- `ScreenshotItem` — Codable model for persisted history entries (stored in `history.json` beside the saved screenshots)
-- `AnnotationElement` — represents a single drawn annotation (arrow, text, shape, etc.)
-- `CaptureMode` — enum: `.region`, `.window`, `.screen`
-- `AnnotationTool` — enum with 8 tools: arrow, text, rectangle, oval, line, pencil, blur, pixelate
-- `ScreenshotHistoryManager` — saves new screenshots to the user's real `~/Downloads` (`saveDirectory`) and keeps `history.json` plus older screenshots in the app container (`storeDirectory`). History trimming and Clear History only delete files inside `storeDirectory`; deleting a history item moves its file to the Trash. History limit defaults to 50
+Share buttons (editor bottom bar, pin toolbar, floating thumbnail) use `SharingAnchor` + `.sharingAnchor(_:)` (Views/SharingSupport.swift) to anchor `NSSharingServicePicker` to the button. Share and drag-out hand over PNG files written by `TemporaryShareFile` (Services/ShareExport.swift) to `tmp/SnapCleanShare/<uuid>/`, named like saved screenshots and pruned after a day; they never touch History. `ScreenshotDragItem` builds the drag `NSItemProvider` (file URL + PNG data). The canvas is for drawing, so the editor drags out via the `DragOutHandle`; History thumbnails drag their saved file.
+
+Preferences "After capture:" (`AppState.afterCaptureAction`, UserDefaults `afterCaptureAction`, only used while "Show preview after capture" is on) picks the editor (default) or a floating thumbnail. In thumbnail mode `handleCapturedImage` calls `showFloatingThumbnail(for:)` (State/AppState+Sharing.swift) instead of touching the editor. `FloatingThumbnailState` (State/) holds the logic and is tested without windows: `ThumbnailDismissSchedule` auto-dismisses after 6 s, paused while hovered or held (share picker open, drag in progress) and restarted on resume; `FloatingThumbnailEnding.savesCapture` says whether an ending saves (timeout, replacement by a new capture, quit, Save, Pin do; Close and click-to-edit don't). It reaches the app through `FloatingThumbnailActions` (AppState) and the window through `FloatingThumbnailPresenting` (`FloatingThumbnailWindowController` in Windows/, a borderless non-activating `NSPanel` in the bottom-right of the screen under the pointer).
+
+### Key Types
+
+- `AppState` (State/AppState.swift) — centralized observable state; owns `ScreenCaptureService` and `ScreenshotHistoryManager` instances. `CaptureState`, `AnnotationState` and `HistoryState` live beside it in State/
+- `ScreenshotItem`, `CaptureMode`, `CaptureError` (Models/Screenshot.swift) — plain models: `ScreenshotItem` is the Codable history entry (stored in `history.json` beside the saved screenshots); `CaptureMode` is `.region`, `.window`, `.screen`
+- `AnnotationElement`, `AnnotationTool`, `TextDraft` (Models/Annotation.swift) — a single drawn annotation (arrow, text, shape, etc.), the 8 tools (arrow, text, rectangle, oval, line, pencil, blur, pixelate), and the in-progress text box
+- `ScreenshotHistoryManager` (Services/ScreenshotHistoryManager.swift) — saves new screenshots to the user's real `~/Downloads` (`saveDirectory`) and keeps `history.json` plus older screenshots in the app container (`storeDirectory`). History trimming and Clear History only delete files inside `storeDirectory`; deleting a history item moves its file to the Trash. History limit defaults to 50
 - `HotkeyShortcut` (HotkeyShortcut.swift) — user-recordable global shortcut per `CaptureMode`, stored in UserDefaults as `hotkey.<mode>`; `AppDelegate` re-registers hotkeys via `AppState.onHotkeysChanged`
 
 ### Services
 
 - `ScreenCaptureService` (ScreenCapture.swift) — wraps ScreenCaptureKit for region/window/full-screen capture; also provides save-to-disk, copy-to-clipboard, and image processing (pixelate/blur via Core Image filters)
+- `CaptureGeometry` (ScreenCapture.swift) — pure coordinate conversions for capture, tested in `CaptureGeometryTests`
 - `HotkeyManager` (HotkeyManager.swift) — singleton that registers global keyboard shortcuts using Carbon `RegisterEventHotKey`; global hotkeys are unregistered while the Preferences shortcut recorder is active
 
 ### View Hierarchy
@@ -70,6 +75,7 @@ Hotkey actions call `AppState.startCapture(mode:)` directly; shortcuts default t
 
 1. Hotkey or menu action → `AppState.startCapture(mode:)`
 2. `CaptureOverlay` performs capture via `ScreenCaptureService` → `AppState.handleCapturedImage(_:)`
+   - With "After capture: Show floating thumbnail", the thumbnail appears instead; clicking it opens the editor (step 3), otherwise it saves itself as in step 4
 3. User annotates in `AnnotationCanvasView` → annotations stored in `AppState.annotations` with undo/redo stacks
 4. Save → `ScreenCaptureService.saveImage(_:)` → `AppState.addToHistory(path:image:)` → persisted via `ScreenshotHistoryManager`
 
@@ -79,5 +85,6 @@ Hotkey actions call `AppState.startCapture(mode:)` directly; shortcuts default t
 - **Bundle ID**: `com.snapclean.app`
 - **Code signing**: `project.yml` is configured for Apple Development signing with team `QNGW24R2UL`. Update `DEVELOPMENT_TEAM` before building under another Apple Developer account.
 - **Entitlements**: App Sandbox enabled with read-only user-selected file access, and Downloads read/write access.
+- **Launch at login**: Preferences > General toggles `SMAppService.mainApp` (ServiceManagement, auto-linked); status is read live, not stored in UserDefaults.
 - **Required system permissions**: Screen Recording, Accessibility (for global hotkeys).
 - **Permission troubleshooting**: If Screen Recording appears enabled in System Settings but SnapClean still reports blocked, quit SnapClean, reset/re-add the exact built `SnapClean.app` in Screen & System Audio Recording, then relaunch. Stable Apple Development signing prevents repeated prompts after normal rebuilds.

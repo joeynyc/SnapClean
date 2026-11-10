@@ -70,8 +70,7 @@ struct HistoryItemView: View {
                     let path = item.filePath
                     let loaded = await Task.detached(priority: .userInitiated) { NSImage(contentsOfFile: path) }.value
                     if let image = loaded {
-                        appState.pinnedImage = image
-                        appState.showPinWindow = true
+                        appState.pinToScreen(image, sourcePath: path)
                     }
                 }
             } label: {
@@ -93,10 +92,12 @@ struct HistoryItemView: View {
                 }
             }
             .buttonStyle(.plain)
-            // Keyed on the data: new history items get their thumbnail after they first appear.
-            .task(id: item.thumbnail) {
-                guard let data = item.thumbnail else { return }
-                thumbnailImage = await Task.detached(priority: .utility) { NSImage(data: data) }.value
+            // Click pins it; dragging drops the saved file into Finder, Mail, Slack, ...
+            .onDrag { ScreenshotDragItem.provider(forSavedFileAtPath: item.filePath) }
+            // New items get their thumbnail file shortly after they appear; the revision triggers a reload.
+            .task(id: appState.history.thumbnailRevisions[item.id] ?? 0) {
+                let url = appState.history.historyManager.thumbnailURL(for: item.id)
+                thumbnailImage = await Task.detached(priority: .utility) { NSImage(contentsOf: url) }.value
             }
 
             // Info

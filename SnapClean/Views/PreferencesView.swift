@@ -1,4 +1,5 @@
 import SwiftUI
+import ServiceManagement
 
 struct PreferencesView: View {
     @Environment(AppState.self) var appState
@@ -92,6 +93,30 @@ struct PreferencesTabButton: View {
 
 struct GeneralPreferencesView: View {
     @Environment(AppState.self) var appState
+    @State private var launchStatus: SMAppService.Status = SMAppService.mainApp.status
+    @State private var launchError: String?
+
+    /// On while registered, including "requires approval" (registered, but the user must allow it in System Settings).
+    private var launchAtLoginBinding: Binding<Bool> {
+        Binding(
+            get: { launchStatus == .enabled || launchStatus == .requiresApproval },
+            set: { setLaunchAtLogin($0) }
+        )
+    }
+
+    private func setLaunchAtLogin(_ enabled: Bool) {
+        do {
+            if enabled {
+                try SMAppService.mainApp.register()
+            } else {
+                try SMAppService.mainApp.unregister()
+            }
+            launchError = nil
+        } catch {
+            launchError = error.localizedDescription
+        }
+        launchStatus = SMAppService.mainApp.status
+    }
 
     var body: some View {
         @Bindable var appState = appState
@@ -131,12 +156,49 @@ struct GeneralPreferencesView: View {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Show preview after capture")
                             .font(.system(size: 13, weight: .medium, design: .rounded))
-                        Text("Display annotation editor after taking screenshot")
+                        Text("Off saves screenshots straight to Downloads")
                             .font(.system(size: 11, design: .rounded))
                             .foregroundStyle(.secondary)
                     }
                 }
                 .toggleStyle(PreferencesToggleStyle())
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("After capture")
+                        .font(.system(size: 13, weight: .medium, design: .rounded))
+                    Picker("After capture:", selection: $appState.afterCaptureAction) {
+                        ForEach(AfterCaptureAction.allCases) { action in
+                            Text(action.title).tag(action)
+                        }
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.segmented)
+                    .fixedSize()
+                }
+                .disabled(!appState.showPreviewAfterCapture)
+                .help("A floating thumbnail saves itself to Downloads after a few seconds unless you close it")
+
+                Toggle(isOn: launchAtLoginBinding) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Launch at login")
+                            .font(.system(size: 13, weight: .medium, design: .rounded))
+                        Text(launchStatus == .requiresApproval
+                            ? "Allow SnapClean in System Settings > General > Login Items"
+                            : "Start SnapClean automatically when you log in")
+                            .font(.system(size: 11, design: .rounded))
+                            .foregroundStyle(.secondary)
+                        if let launchError {
+                            Text(launchError)
+                                .font(.system(size: 11, design: .rounded))
+                                .foregroundStyle(.red)
+                        }
+                    }
+                }
+                .toggleStyle(PreferencesToggleStyle())
+                .onAppear {
+                    launchStatus = SMAppService.mainApp.status
+                    launchError = nil
+                }
             }
 
             Divider()
@@ -359,6 +421,9 @@ struct PreferencesToggleStyle: ToggleStyle {
     func makeBody(configuration: Configuration) -> some View {
         HStack(alignment: .top, spacing: 12) {
             configuration.label
+
+            // Push every switch to the trailing edge so they line up in a column.
+            Spacer(minLength: 0)
 
             Toggle("", isOn: configuration.$isOn)
                 .labelsHidden()

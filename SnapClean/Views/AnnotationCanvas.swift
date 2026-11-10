@@ -8,9 +8,24 @@ struct AnnotationCanvasView: View {
     @State private var currentPath: [CGPoint] = []
     @State private var currentStartPoint: CGPoint = .zero
     @State private var currentEndPoint: CGPoint = .zero
-    @State private var textInput = ""
-    @State private var isEnteringText = false
+    @State private var textFieldSize: CGSize = .zero
+    @FocusState private var isTextFieldFocused: Bool
     @State private var keyMonitor: Any?
+    /// The base image with every blur/pixelate annotation applied; nil when there are none.
+    @State private var effectPreview: NSImage?
+
+    private struct PreviewKey: Equatable {
+        let effects: [RegionEffect]
+        let imageID: ObjectIdentifier
+    }
+
+    private var previewKey: PreviewKey {
+        let bounds = CGRect(origin: .zero, size: image.size)
+        return PreviewKey(
+            effects: appState.annotations.elements.compactMap { $0.denormalized(in: bounds).regionEffect },
+            imageID: ObjectIdentifier(image)
+        )
+    }
 
     var body: some View {
         GeometryReader { geometry in
@@ -22,15 +37,16 @@ struct AnnotationCanvasView: View {
                 // Background
                 Color(NSColor.controlBackgroundColor)
 
-                // Base image
-                Image(nsImage: image)
+                // Base image, with blur and pixelate annotations already applied (same code as export)
+                Image(nsImage: effectPreview ?? image)
                     .resizable()
                     .frame(width: imageFrame.width, height: imageFrame.height)
                     .position(x: imageFrame.midX, y: imageFrame.midY)
 
                 // Single Canvas for all persisted annotations (more efficient than per-annotation Canvas views)
                 Canvas { context, size in
-                    for element in denormalized {
+                    for element in denormalized where !element.tool.isEffect {
+                        // Blur and pixelate show up in the preview image, not as overlays.
                         AnnotationRenderer.draw(element, in: context)
                     }
                 }
@@ -56,51 +72,19 @@ struct AnnotationCanvasView: View {
                     )
                 }
 
-                // Text input overlay
-                if isEnteringText {
-                    TextEditor(text: $textInput)
-                        .font(.system(size: appState.annotations.lineWidth * 8, design: .rounded))
-                        .foregroundStyle(appState.annotations.selectedColor)
-                        .frame(width: 200, height: 50)
-                        .position(currentEndPoint)
-                        .background(Color.clear)
-                        .onDisappear {
-                            if !textInput.isEmpty {
-                                let fontSize = appState.annotations.lineWidth * 8
-                                if let element = AnnotationElement.normalized(
-                                    tool: .text,
-                                    points: [currentEndPoint],
-                                    color: appState.annotations.selectedColor,
-                                    lineWidth: appState.annotations.lineWidth,
-                                    text: textInput,
-                                    fontSize: fontSize,
-                                    in: imageFrame
-                                ) {
-                                    appState.annotations.addAnnotation(element)
-                                }
-                            }
-                            textInput = ""
-                            isEnteringText = false
-                        }
+                // Text box being typed into
+                if let draft = appState.annotations.textDraft {
+                    textDraftField(draft, imageFrame: imageFrame)
                 }
             }
             .contentShape(Rectangle())
-            .simultaneousGesture(
-                SpatialTapGesture()
-                    .onEnded { value in
-                        if appState.annotations.selectedTool == .text && !isDrawing {
-                            currentEndPoint = value.location
-                            isEnteringText = true
-                        }
-                    }
-            )
+            .task(id: previewKey) { await refreshEffectPreview() }
+            // One gesture for every tool: the text tool acts on release, so there is no
+            // tap-versus-drag ordering to get wrong.
             .gesture(
                 DragGesture(minimumDistance: 0)
                     .onChanged { value in
-                        if isEnteringText {
-                            currentEndPoint = value.location
-                            return
-                        }
+                        guard appState.annotations.selectedTool != .text else { return }
 
                         if !isDrawing {
                             isDrawing = true
@@ -119,84 +103,35 @@ struct AnnotationCanvasView: View {
                         }
                     }
                     .onEnded { value in
-                        if isEnteringText {
+                        let tool = appState.annotations.selectedTool
+                        if tool == .text {
+                            handleTextToolClick(at: value.startLocation, imageFrame: imageFrame)
+                            return
+                        }
+                        defer {
+                            isDrawing = false
+                            currentPath = []
+                        }
+                        guard isDrawing else { return }
+
+                        // A click without a drag would leave an invisible, zero-size annotation.
+                        if tool == .pencil {
+                            guard currentPath.count > 1 else { return }
+                        } else if currentStartPoint == value.location {
                             return
                         }
 
-                        let element: AnnotationElement?
-                        switch appState.annotations.selectedTool {
-                        case .arrow:
-                            element = AnnotationElement.normalized(
-                                tool: .arrow,
-                                color: appState.annotations.selectedColor,
-                                lineWidth: appState.annotations.lineWidth,
-                                startPoint: currentStartPoint,
-                                endPoint: value.location,
-                                in: imageFrame
-                            )
-                        case .rectangle:
-                            element = AnnotationElement.normalized(
-                                tool: .rectangle,
-                                color: appState.annotations.selectedColor,
-                                lineWidth: appState.annotations.lineWidth,
-                                startPoint: currentStartPoint,
-                                endPoint: value.location,
-                                in: imageFrame
-                            )
-                        case .oval:
-                            element = AnnotationElement.normalized(
-                                tool: .oval,
-                                color: appState.annotations.selectedColor,
-                                lineWidth: appState.annotations.lineWidth,
-                                startPoint: currentStartPoint,
-                                endPoint: value.location,
-                                in: imageFrame
-                            )
-                        case .line:
-                            element = AnnotationElement.normalized(
-                                tool: .line,
-                                color: appState.annotations.selectedColor,
-                                lineWidth: appState.annotations.lineWidth,
-                                startPoint: currentStartPoint,
-                                endPoint: value.location,
-                                in: imageFrame
-                            )
-                        case .blur:
-                            element = AnnotationElement.normalized(
-                                tool: .blur,
-                                color: appState.annotations.selectedColor,
-                                lineWidth: appState.annotations.lineWidth,
-                                startPoint: currentStartPoint,
-                                endPoint: value.location,
-                                in: imageFrame
-                            )
-                        case .pixelate:
-                            element = AnnotationElement.normalized(
-                                tool: .pixelate,
-                                color: appState.annotations.selectedColor,
-                                lineWidth: appState.annotations.lineWidth,
-                                startPoint: currentStartPoint,
-                                endPoint: value.location,
-                                in: imageFrame
-                            )
-                        case .pencil:
-                            element = AnnotationElement.normalized(
-                                tool: .pencil,
-                                points: currentPath,
-                                color: appState.annotations.selectedColor,
-                                lineWidth: appState.annotations.lineWidth,
-                                in: imageFrame
-                            )
-                        default:
-                            element = nil
+                        if let element = AnnotationElement.normalized(
+                            tool: tool,
+                            points: tool == .pencil ? currentPath : [],
+                            color: appState.annotations.selectedColor,
+                            lineWidth: appState.annotations.lineWidth,
+                            startPoint: tool.usesRectangularDrag ? currentStartPoint : nil,
+                            endPoint: tool.usesRectangularDrag ? value.location : nil,
+                            in: imageFrame
+                        ) {
+                            appState.annotations.addAnnotation(element)
                         }
-
-                        if let el = element {
-                            appState.annotations.addAnnotation(el)
-                        }
-
-                        isDrawing = false
-                        currentPath = []
                     }
             )
             .toolbar {
@@ -210,26 +145,7 @@ struct AnnotationCanvasView: View {
         }
         .onAppear {
             keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
-                let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
-                if flags == .command && event.charactersIgnoringModifiers == "z" {
-                    appState.annotations.undo()
-                    return nil
-                }
-                if flags == [.command, .shift] && event.charactersIgnoringModifiers == "z" {
-                    appState.annotations.redo()
-                    return nil
-                }
-                if flags == .command && event.charactersIgnoringModifiers == "s" {
-                    appState.saveAnnotation()
-                    return nil
-                }
-                if flags == .command && event.charactersIgnoringModifiers == "c" {
-                    if let img = appState.currentEditableImage() {
-                        appState.capture.screenCapture.copyToClipboard(img)
-                    }
-                    return nil
-                }
-                return event
+                handleKeyDown(event)
             }
         }
         .onDisappear {
@@ -240,13 +156,161 @@ struct AnnotationCanvasView: View {
         }
     }
 
-    private func geometrySizeClamped(to size: CGSize) -> CGSize {
-        CGSize(width: max(size.width, 1), height: max(size.height, 1))
+    // MARK: - Text tool
+
+    /// The editable text box. Its text starts exactly where the committed annotation will be
+    /// drawn (`AnnotationRenderer` draws text with a top-leading anchor at the draft origin), and
+    /// it never wraps, matching the renderer, which draws each line at its natural width.
+    private func textDraftField(_ draft: TextDraft, imageFrame: CGRect) -> some View {
+        let origin = AnnotationElement.denormalize(draft.origin, in: imageFrame)
+        let displayDimension = max(min(imageFrame.width, imageFrame.height), 1)
+        // Same value the committed element denormalizes to, so the size doesn't jump on commit.
+        let fontSize = max(
+            appState.annotations.lineWidth * AnnotationState.textSizeMultiplier
+                * displayDimension / draft.referenceDimension,
+            1
+        )
+        let text = Binding(
+            get: { appState.annotations.textDraft?.text ?? "" },
+            set: { appState.annotations.textDraft?.text = $0 }
+        )
+
+        let font = Font.system(size: fontSize, design: .rounded)
+        // A vertical-axis TextField keeps wrapping at the width it was created with, so a box
+        // that starts empty and grows wraps every character. Give the field a fixed width out to
+        // the image's right edge, and size the visible box from a hidden Text of the same string
+        // (plus room for the caret).
+        let fieldWidth = max(imageFrame.maxX - origin.x, fontSize)
+        return Text((appState.annotations.textDraft?.text ?? "") + "  ")
+            .font(font)
+            .fixedSize()
+            .hidden()
+            .frame(minWidth: fontSize, alignment: .leading)
+            .overlay(alignment: .topLeading) {
+                TextField("", text: text, axis: .vertical)
+                    .textFieldStyle(.plain)
+                    .font(font)
+                    .foregroundStyle(appState.annotations.selectedColor)
+                    .focused($isTextFieldFocused)
+                    .frame(width: fieldWidth, alignment: .topLeading)
+            }
+            .background(
+                RoundedRectangle(cornerRadius: 3)
+                    .stroke(Color.accentColor.opacity(0.8), style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
+                    .padding(-4)
+            )
+            .onGeometryChange(for: CGSize.self) { proxy in
+                proxy.size
+            } action: { size in
+                textFieldSize = size
+            }
+            // A plain TextField draws its first line where the renderer draws a top-leading Text
+            // (checked offscreen to within 1px), so no inset correction is needed.
+            .offset(x: origin.x, y: origin.y)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .onAppear {
+                // Focus after the field is in the window, or the request is dropped.
+                DispatchQueue.main.async { isTextFieldFocused = true }
+            }
     }
+
+    /// With the text tool, a click places a text box; a click anywhere off the open box commits it.
+    private func handleTextToolClick(at location: CGPoint, imageFrame: CGRect) {
+        if let draft = appState.annotations.textDraft {
+            let fieldFrame = CGRect(
+                origin: AnnotationElement.denormalize(draft.origin, in: imageFrame),
+                size: textFieldSize
+            )
+            // Clicks on the box itself (and its outline) are for placing the caret.
+            if !fieldFrame.insetBy(dx: -4, dy: -4).contains(location) {
+                appState.annotations.commitTextDraft()
+            }
+            return
+        }
+        guard imageFrame.contains(location) else { return }
+        appState.annotations.beginTextDraft(at: location, in: imageFrame)
+    }
+
+    // MARK: - Keyboard
+
+    /// Editor shortcuts. While a text field is being edited, Return commits the text box
+    /// (Shift- or Option-Return inserts a line break), Escape cancels it, and the standard
+    /// editing shortcuts (Cmd-C, Cmd-Z, ...) go to the field rather than the canvas.
+    private func handleKeyDown(_ event: NSEvent) -> NSEvent? {
+        // Leave other windows (Preferences, History) alone.
+        if let mainWindow = appState.capture.mainWindow, event.window !== mainWindow {
+            return event
+        }
+
+        let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        let key = event.charactersIgnoringModifiers?.lowercased()
+        let fieldEditor = event.window?.firstResponder as? NSTextView
+
+        if appState.annotations.textDraft != nil {
+            switch event.keyCode {
+            case Self.escapeKeyCode:
+                appState.annotations.cancelTextDraft()
+                return nil
+            case Self.returnKeyCode, Self.keypadEnterKeyCode:
+                guard let fieldEditor else { break }
+                if flags.contains(.shift) || flags.contains(.option) {
+                    fieldEditor.insertNewlineIgnoringFieldEditor(nil)
+                } else {
+                    appState.annotations.commitTextDraft()
+                }
+                return nil
+            default:
+                break
+            }
+        }
+
+        if flags == .command && key == "s" {
+            appState.saveAnnotation()
+            return nil
+        }
+
+        // Text editing gets Cmd-C, Cmd-Z and Shift-Cmd-Z.
+        if fieldEditor != nil {
+            return event
+        }
+
+        if flags == .command && key == "z" {
+            appState.annotations.undo()
+            return nil
+        }
+        if flags == [.command, .shift] && key == "z" {
+            appState.annotations.redo()
+            return nil
+        }
+        if flags == .command && key == "c" {
+            appState.copyEditableImage()
+            return nil
+        }
+        return event
+    }
+
+    /// Recomputes the effect preview off the main thread. A newer change cancels the task and keeps
+    /// the last preview on screen until the new one is ready.
+    private func refreshEffectPreview() async {
+        let key = previewKey
+        guard !key.effects.isEmpty,
+              let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
+            effectPreview = nil
+            return
+        }
+        let size = image.size
+        let result = await Task.detached(priority: .userInitiated) {
+            ImageEffects.apply(key.effects, to: cgImage, pointSize: size)
+        }.value
+        guard !Task.isCancelled else { return }
+        effectPreview = result.map { NSImage(cgImage: $0, size: size) }
+    }
+
+    // MARK: - Layout
 
     /// Fits the image inside the area above the bottom toolbar without upscaling it past its native size.
     private func imageDisplayFrame(in availableSize: CGSize) -> CGRect {
-        let size = geometrySizeClamped(to: availableSize)
+        let size = CGSize(width: max(availableSize.width, 1), height: max(availableSize.height, 1))
         let area = CGRect(
             x: 0,
             y: 0,
@@ -270,6 +334,9 @@ struct AnnotationCanvasView: View {
 
     private static let bottomToolbarHeight: CGFloat = 56
     private static let imagePadding: CGFloat = 16
+    private static let escapeKeyCode: UInt16 = 53
+    private static let returnKeyCode: UInt16 = 36
+    private static let keypadEnterKeyCode: UInt16 = 76
 }
 
 struct AnnotationRenderer: View {
@@ -361,7 +428,7 @@ struct AnnotationRenderer: View {
 
         case .text:
             if let text = element.text, let point = element.points.first {
-                let fontSize = element.fontSize ?? element.lineWidth * 8
+                let fontSize = element.fontSize ?? element.lineWidth * AnnotationState.textSizeMultiplier
                 let resolved = context.resolve(
                     Text(text)
                         .font(.system(size: fontSize, design: .rounded))
@@ -375,58 +442,75 @@ struct AnnotationRenderer: View {
         }
     }
 
+    /// Thin dashed outline shown only while dragging out a new blur/pixelate rect.
     private static func drawEffectOverlay(_ element: AnnotationElement, in context: GraphicsContext) {
         guard let rect = element.effectRect, rect.width > 0, rect.height > 0 else { return }
 
-        let overlayColor: Color = element.tool == .blur ? .cyan : .purple
-        context.fill(
-            Path(rect),
-            with: .color(overlayColor.opacity(0.14))
-        )
+        let outlineColor: Color = element.tool == .blur ? .cyan : .purple
         context.stroke(
             Path(rect),
-            with: .color(overlayColor.opacity(0.9)),
-            style: StrokeStyle(
-                lineWidth: max(element.lineWidth, 2),
-                lineCap: .round,
-                lineJoin: .round,
-                dash: [8, 5]
-            )
+            with: .color(outlineColor.opacity(0.9)),
+            style: StrokeStyle(lineWidth: 1, lineCap: .round, lineJoin: .round, dash: [6, 4])
         )
     }
 
     private static func drawArrow(context: GraphicsContext, start: CGPoint, end: CGPoint, color: Color, lineWidth: CGFloat) {
-        // Draw line
+        guard let arrow = arrowGeometry(start: start, end: end, lineWidth: lineWidth) else { return }
+
         var path = Path()
         path.move(to: start)
-        path.addLine(to: end)
+        path.addLine(to: arrow.shaftEnd)
         context.stroke(path, with: .color(color), lineWidth: lineWidth)
 
-        // Draw arrowhead
-        let arrowLength: CGFloat = 15
-        let angle = atan2(end.y - start.y, end.x - start.x)
-
-        let arrowTip = end
-        let leftPoint = CGPoint(
-            x: end.x - arrowLength * cos(angle - .pi / 6),
-            y: end.y - arrowLength * sin(angle - .pi / 6)
-        )
-        let rightPoint = CGPoint(
-            x: end.x - arrowLength * cos(angle + .pi / 6),
-            y: end.y - arrowLength * sin(angle + .pi / 6)
-        )
-
         var arrowPath = Path()
-        arrowPath.move(to: arrowTip)
-        arrowPath.addLine(to: leftPoint)
-        arrowPath.addLine(to: rightPoint)
+        arrowPath.move(to: arrow.tip)
+        arrowPath.addLine(to: arrow.left)
+        arrowPath.addLine(to: arrow.right)
         arrowPath.closeSubpath()
         context.fill(arrowPath, with: .color(color))
+    }
+
+    struct ArrowGeometry: Equatable {
+        /// Where the shaft stops: inside the head, so a thick shaft's square end can't poke past its sides.
+        var shaftEnd: CGPoint
+        var tip: CGPoint
+        var left: CGPoint
+        var right: CGPoint
+    }
+
+    /// Head length per point of line width. The head scales only with the line width (which is
+    /// normalized like the points), so the editor and the full-size export show the same proportions.
+    static let arrowHeadLengthPerLineWidth: CGFloat = 6
+    private static let arrowHeadHalfAngle: CGFloat = .pi / 6
+
+    /// Returns nil for a zero-length arrow, which has no direction.
+    static func arrowGeometry(start: CGPoint, end: CGPoint, lineWidth: CGFloat) -> ArrowGeometry? {
+        let dx = end.x - start.x
+        let dy = end.y - start.y
+        let length = hypot(dx, dy)
+        guard length > 0 else { return nil }
+
+        // A short arrow is all head rather than a head that overshoots its start.
+        let headLength = min(lineWidth * arrowHeadLengthPerLineWidth, length)
+        let angle = atan2(dy, dx)
+        let left = CGPoint(
+            x: end.x - headLength * cos(angle - arrowHeadHalfAngle),
+            y: end.y - headLength * sin(angle - arrowHeadHalfAngle)
+        )
+        let right = CGPoint(
+            x: end.x - headLength * cos(angle + arrowHeadHalfAngle),
+            y: end.y - headLength * sin(angle + arrowHeadHalfAngle)
+        )
+        // Halfway into the head, where it is still wider than the shaft.
+        let shaftLength = length - headLength * cos(arrowHeadHalfAngle) / 2
+        let shaftEnd = CGPoint(x: start.x + dx / length * shaftLength, y: start.y + dy / length * shaftLength)
+        return ArrowGeometry(shaftEnd: shaftEnd, tip: end, left: left, right: right)
     }
 }
 
 struct BottomToolbarView: View {
     @Environment(AppState.self) var appState
+    @State private var shareAnchor = SharingAnchor()
 
     var body: some View {
         HStack(spacing: 20) {
@@ -441,8 +525,7 @@ struct BottomToolbarView: View {
                     .frame(height: 20)
 
                 ActionButton(icon: "doc.on.doc", label: "Copy") {
-                    guard let image = appState.currentEditableImage() else { return }
-                    appState.capture.screenCapture.copyToClipboard(image)
+                    appState.copyEditableImage()
                 }
 
                 ActionButton(icon: "square.and.arrow.down", label: "Save") {
@@ -453,6 +536,17 @@ struct BottomToolbarView: View {
                     if let image = appState.currentEditableImage() {
                         appState.pinToScreen(image)
                     }
+                }
+
+                ActionButton(icon: "square.and.arrow.up", label: "Share") {
+                    guard let url = appState.exportEditorImageForSharing() else { return }
+                    shareAnchor.showPicker(items: [url])
+                }
+                .sharingAnchor(shareAnchor)
+
+                DragOutHandle {
+                    appState.exportEditorImageForSharing()
+                        .map(ScreenshotDragItem.provider(forFileAt:)) ?? NSItemProvider()
                 }
             }
 
