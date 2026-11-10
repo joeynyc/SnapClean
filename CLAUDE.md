@@ -41,7 +41,7 @@ Unit tests live in `SnapCleanTests/`. GitHub Actions runs `xcodegen generate` an
 
 ### App Entry & Lifecycle
 
-`AppDelegate` (via `@NSApplicationDelegateAdaptor`) owns the single `AppState` instance, registers global hotkeys, and checks screen recording permission. `SnapCleanApp` (@main) declares the main `Window` scene (id `main`), the History and About window groups, the `MenuBarExtra`, and Settings, injecting `appDelegate.appState` into each. Owning `AppState` in the delegate keeps hotkeys working even when no window has been opened.
+`AppDelegate` (via `@NSApplicationDelegateAdaptor`) owns the single `AppState` instance and registers global hotkeys. `SnapCleanApp` (@main) declares the main `Window` scene (id `main`), the History and About window groups, the `MenuBarExtra`, and Settings, injecting `appDelegate.appState` into each. Owning `AppState` in the delegate keeps hotkeys working even when no window has been opened.
 
 ### Communication Pattern
 

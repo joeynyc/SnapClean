@@ -192,12 +192,16 @@ final class AppState {
         if showPreviewAfterCapture {
             capture.showAnnotationCanvas = true
         } else {
-            if let path = capture.screenCapture.saveImage(image, to: history.historyManager.saveDirectory) {
-                history.addToHistory(path: path, image: image, limit: historyLimit)
-            } else {
-                capture.lastCaptureError = .saveFailed(history.historyManager.saveDirectory.path)
-                capture.revealMainWindow()
-                appLogger.error("Failed to save captured image to \(self.history.historyManager.saveDirectory.path, privacy: .public)")
+            // Encode and write off the main thread; History and errors are updated back here.
+            let directory = history.historyManager.saveDirectory
+            Task {
+                if let path = await capture.screenCapture.saveImageInBackground(image, to: directory) {
+                    history.addToHistory(path: path, image: image, limit: historyLimit)
+                } else {
+                    capture.lastCaptureError = .saveFailed(directory.path)
+                    capture.revealMainWindow()
+                    appLogger.error("Failed to save captured image to \(directory.path, privacy: .public)")
+                }
             }
         }
     }
