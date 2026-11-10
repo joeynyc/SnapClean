@@ -163,8 +163,8 @@ struct GeneralPreferencesView: View {
                 }
                 .toggleStyle(PreferencesToggleStyle())
 
-                HStack(spacing: 12) {
-                    Text("After capture:")
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("After capture")
                         .font(.system(size: 13, weight: .medium, design: .rounded))
                     Picker("After capture:", selection: $appState.afterCaptureAction) {
                         ForEach(AfterCaptureAction.allCases) { action in
@@ -421,6 +421,9 @@ struct PreferencesToggleStyle: ToggleStyle {
     func makeBody(configuration: Configuration) -> some View {
         HStack(alignment: .top, spacing: 12) {
             configuration.label
+
+            // Push every switch to the trailing edge so they line up in a column.
+            Spacer(minLength: 0)
 
             Toggle("", isOn: configuration.$isOn)
                 .labelsHidden()

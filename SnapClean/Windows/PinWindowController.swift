@@ -65,8 +65,11 @@ final class PinWindowController: NSObject, NSWindowDelegate {
         panel.hidesOnDeactivate = false
         panel.isReleasedWhenClosed = false
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-        // Wide enough for the hover toolbar.
-        panel.minSize = NSSize(width: 290, height: 180)
+        // The panel can't minimize or zoom; hide those buttons so only Close sits in the corner.
+        panel.standardWindowButton(.miniaturizeButton)?.isHidden = true
+        panel.standardWindowButton(.zoomButton)?.isHidden = true
+        // Wide enough for the right-aligned hover toolbar to clear the Close button.
+        panel.minSize = NSSize(width: 330, height: 180)
         panel.isMovableByWindowBackground = true
         panel.delegate = self
         applyBackground(to: panel)
@@ -81,7 +84,7 @@ final class PinWindowController: NSObject, NSWindowDelegate {
 
         let scale = min(maxSize.width / image.size.width, maxSize.height / image.size.height, 1)
         return NSSize(
-            width: max(image.size.width * scale, 290),
+            width: max(image.size.width * scale, 330),
             height: max(image.size.height * scale, 180)
         )
     }
