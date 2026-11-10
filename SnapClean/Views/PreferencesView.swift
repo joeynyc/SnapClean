@@ -1,4 +1,5 @@
 import SwiftUI
+import ServiceManagement
 
 struct PreferencesView: View {
     @Environment(AppState.self) var appState
@@ -92,6 +93,30 @@ struct PreferencesTabButton: View {
 
 struct GeneralPreferencesView: View {
     @Environment(AppState.self) var appState
+    @State private var launchStatus: SMAppService.Status = SMAppService.mainApp.status
+    @State private var launchError: String?
+
+    /// On while registered, including "requires approval" (registered, but the user must allow it in System Settings).
+    private var launchAtLoginBinding: Binding<Bool> {
+        Binding(
+            get: { launchStatus == .enabled || launchStatus == .requiresApproval },
+            set: { setLaunchAtLogin($0) }
+        )
+    }
+
+    private func setLaunchAtLogin(_ enabled: Bool) {
+        do {
+            if enabled {
+                try SMAppService.mainApp.register()
+            } else {
+                try SMAppService.mainApp.unregister()
+            }
+            launchError = nil
+        } catch {
+            launchError = error.localizedDescription
+        }
+        launchStatus = SMAppService.mainApp.status
+    }
 
     var body: some View {
         @Bindable var appState = appState
@@ -137,6 +162,28 @@ struct GeneralPreferencesView: View {
                     }
                 }
                 .toggleStyle(PreferencesToggleStyle())
+
+                Toggle(isOn: launchAtLoginBinding) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Launch at login")
+                            .font(.system(size: 13, weight: .medium, design: .rounded))
+                        Text(launchStatus == .requiresApproval
+                            ? "Allow SnapClean in System Settings > General > Login Items"
+                            : "Start SnapClean automatically when you log in")
+                            .font(.system(size: 11, design: .rounded))
+                            .foregroundStyle(.secondary)
+                        if let launchError {
+                            Text(launchError)
+                                .font(.system(size: 11, design: .rounded))
+                                .foregroundStyle(.red)
+                        }
+                    }
+                }
+                .toggleStyle(PreferencesToggleStyle())
+                .onAppear {
+                    launchStatus = SMAppService.mainApp.status
+                    launchError = nil
+                }
             }
 
             Divider()

@@ -78,5 +78,6 @@ Hotkey actions call `AppState.startCapture(mode:)` directly; shortcuts default t
 - **Bundle ID**: `com.snapclean.app`
 - **Code signing**: `project.yml` is configured for Apple Development signing with team `QNGW24R2UL`. Update `DEVELOPMENT_TEAM` before building under another Apple Developer account.
 - **Entitlements**: App Sandbox enabled with read-only user-selected file access, and Downloads read/write access.
+- **Launch at login**: Preferences > General toggles `SMAppService.mainApp` (ServiceManagement, auto-linked); status is read live, not stored in UserDefaults.
 - **Required system permissions**: Screen Recording, Accessibility (for global hotkeys).
 - **Permission troubleshooting**: If Screen Recording appears enabled in System Settings but SnapClean still reports blocked, quit SnapClean, reset/re-add the exact built `SnapClean.app` in Screen & System Audio Recording, then relaunch. Stable Apple Development signing prevents repeated prompts after normal rebuilds.
