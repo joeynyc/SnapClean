@@ -97,7 +97,6 @@ struct AboutView: View {
 
 struct WelcomeView: View {
     @Environment(AppState.self) var appState
-    @State private var selectedTab = 0
 
     var body: some View {
         VStack(spacing: 0) {
