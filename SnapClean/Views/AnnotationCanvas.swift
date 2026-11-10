@@ -11,6 +11,21 @@ struct AnnotationCanvasView: View {
     @State private var textFieldSize: CGSize = .zero
     @FocusState private var isTextFieldFocused: Bool
     @State private var keyMonitor: Any?
+    /// The base image with every blur/pixelate annotation applied; nil when there are none.
+    @State private var effectPreview: NSImage?
+
+    private struct PreviewKey: Equatable {
+        let effects: [RegionEffect]
+        let imageID: ObjectIdentifier
+    }
+
+    private var previewKey: PreviewKey {
+        let bounds = CGRect(origin: .zero, size: image.size)
+        return PreviewKey(
+            effects: appState.annotations.elements.compactMap { $0.denormalized(in: bounds).regionEffect },
+            imageID: ObjectIdentifier(image)
+        )
+    }
 
     var body: some View {
         GeometryReader { geometry in
@@ -22,15 +37,16 @@ struct AnnotationCanvasView: View {
                 // Background
                 Color(NSColor.controlBackgroundColor)
 
-                // Base image
-                Image(nsImage: image)
+                // Base image, with blur and pixelate annotations already applied (same code as export)
+                Image(nsImage: effectPreview ?? image)
                     .resizable()
                     .frame(width: imageFrame.width, height: imageFrame.height)
                     .position(x: imageFrame.midX, y: imageFrame.midY)
 
                 // Single Canvas for all persisted annotations (more efficient than per-annotation Canvas views)
                 Canvas { context, size in
-                    for element in denormalized {
+                    for element in denormalized where !element.tool.isEffect {
+                        // Blur and pixelate show up in the preview image, not as overlays.
                         AnnotationRenderer.draw(element, in: context)
                     }
                 }
@@ -62,6 +78,7 @@ struct AnnotationCanvasView: View {
                 }
             }
             .contentShape(Rectangle())
+            .task(id: previewKey) { await refreshEffectPreview() }
             // One gesture for every tool: the text tool acts on release, so there is no
             // tap-versus-drag ordering to get wrong.
             .gesture(
@@ -272,6 +289,23 @@ struct AnnotationCanvasView: View {
         return event
     }
 
+    /// Recomputes the effect preview off the main thread. A newer change cancels the task and keeps
+    /// the last preview on screen until the new one is ready.
+    private func refreshEffectPreview() async {
+        let key = previewKey
+        guard !key.effects.isEmpty,
+              let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
+            effectPreview = nil
+            return
+        }
+        let size = image.size
+        let result = await Task.detached(priority: .userInitiated) {
+            ImageEffects.apply(key.effects, to: cgImage, pointSize: size)
+        }.value
+        guard !Task.isCancelled else { return }
+        effectPreview = result.map { NSImage(cgImage: $0, size: size) }
+    }
+
     // MARK: - Layout
 
     /// Fits the image inside the area above the bottom toolbar without upscaling it past its native size.
@@ -408,23 +442,15 @@ struct AnnotationRenderer: View {
         }
     }
 
+    /// Thin dashed outline shown only while dragging out a new blur/pixelate rect.
     private static func drawEffectOverlay(_ element: AnnotationElement, in context: GraphicsContext) {
         guard let rect = element.effectRect, rect.width > 0, rect.height > 0 else { return }
 
-        let overlayColor: Color = element.tool == .blur ? .cyan : .purple
-        context.fill(
-            Path(rect),
-            with: .color(overlayColor.opacity(0.14))
-        )
+        let outlineColor: Color = element.tool == .blur ? .cyan : .purple
         context.stroke(
             Path(rect),
-            with: .color(overlayColor.opacity(0.9)),
-            style: StrokeStyle(
-                lineWidth: max(element.lineWidth, 2),
-                lineCap: .round,
-                lineJoin: .round,
-                dash: [8, 5]
-            )
+            with: .color(outlineColor.opacity(0.9)),
+            style: StrokeStyle(lineWidth: 1, lineCap: .round, lineJoin: .round, dash: [6, 4])
         )
     }
 
