@@ -47,6 +47,12 @@ Unit tests live in `SnapCleanTests/`. GitHub Actions runs `xcodegen generate` an
 
 Hotkey actions call `AppState.startCapture(mode:)` directly; shortcuts default to ⇧⌘F1/F2/F3 and can be changed in Preferences. `AppState` observes `NSApplication.didBecomeActiveNotification` in `setupNotifications()` to refresh permission status. Because `AppState` can't call SwiftUI's `openWindow`, the menu bar icon's label view hands it an `openMainWindow` closure, used when a capture finishes while the main window is closed. Pinned screenshots are shown by `PinWindowController` (Windows/) in a floating `NSPanel`, driven by `AppState.showPinWindow`/`pinnedImage`. The pin API is `AppState.pinToScreen(_:sourcePath:)`, `closePinnedImage`, `savePinnedImage` and `revealPinnedImage`.
 
+### Sharing and the floating thumbnail
+
+Share buttons (editor bottom bar, pin toolbar, floating thumbnail) use `SharingAnchor` + `.sharingAnchor(_:)` (Views/SharingSupport.swift) to anchor `NSSharingServicePicker` to the button. Share and drag-out hand over PNG files written by `TemporaryShareFile` (Services/ShareExport.swift) to `tmp/SnapCleanShare/<uuid>/`, named like saved screenshots and pruned after a day; they never touch History. `ScreenshotDragItem` builds the drag `NSItemProvider` (file URL + PNG data). The canvas is for drawing, so the editor drags out via the `DragOutHandle`; History thumbnails drag their saved file.
+
+Preferences "After capture:" (`AppState.afterCaptureAction`, UserDefaults `afterCaptureAction`, only used while "Show preview after capture" is on) picks the editor (default) or a floating thumbnail. In thumbnail mode `handleCapturedImage` calls `showFloatingThumbnail(for:)` (State/AppState+Sharing.swift) instead of touching the editor. `FloatingThumbnailState` (State/) holds the logic and is tested without windows: `ThumbnailDismissSchedule` auto-dismisses after 6 s, paused while hovered or held (share picker open, drag in progress) and restarted on resume; `FloatingThumbnailEnding.savesCapture` says whether an ending saves (timeout, replacement by a new capture, quit, Save, Pin do; Close and click-to-edit don't). It reaches the app through `FloatingThumbnailActions` (AppState) and the window through `FloatingThumbnailPresenting` (`FloatingThumbnailWindowController` in Windows/, a borderless non-activating `NSPanel` in the bottom-right of the screen under the pointer).
+
 ### Key Types
 
 - `AppState` (State/AppState.swift) — centralized observable state; owns `ScreenCaptureService` and `ScreenshotHistoryManager` instances. `CaptureState`, `AnnotationState` and `HistoryState` live beside it in State/
@@ -69,6 +75,7 @@ Hotkey actions call `AppState.startCapture(mode:)` directly; shortcuts default t
 
 1. Hotkey or menu action → `AppState.startCapture(mode:)`
 2. `CaptureOverlay` performs capture via `ScreenCaptureService` → `AppState.handleCapturedImage(_:)`
+   - With "After capture: Show floating thumbnail", the thumbnail appears instead; clicking it opens the editor (step 3), otherwise it saves itself as in step 4
 3. User annotates in `AnnotationCanvasView` → annotations stored in `AppState.annotations` with undo/redo stacks
 4. Save → `ScreenCaptureService.saveImage(_:)` → `AppState.addToHistory(path:image:)` → persisted via `ScreenshotHistoryManager`
 
