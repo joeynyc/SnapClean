@@ -10,7 +10,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             self?.registerHotkeys()
         }
         registerHotkeys()
-        checkScreenRecordingPermission()
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -29,9 +28,5 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 }
             }
         }
-    }
-
-    private func checkScreenRecordingPermission() {
-        _ = CGPreflightScreenCaptureAccess()
     }
 }
