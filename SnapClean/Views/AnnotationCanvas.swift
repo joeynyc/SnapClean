@@ -158,13 +158,25 @@ struct AnnotationCanvasView: View {
             set: { appState.annotations.textDraft?.text = $0 }
         )
 
-        return TextField("", text: text, axis: .vertical)
-            .textFieldStyle(.plain)
-            .font(.system(size: fontSize, design: .rounded))
-            .foregroundStyle(appState.annotations.selectedColor)
-            .focused($isTextFieldFocused)
+        let font = Font.system(size: fontSize, design: .rounded)
+        // A vertical-axis TextField keeps wrapping at the width it was created with, so a box
+        // that starts empty and grows wraps every character. Give the field a fixed width out to
+        // the image's right edge, and size the visible box from a hidden Text of the same string
+        // (plus room for the caret).
+        let fieldWidth = max(imageFrame.maxX - origin.x, fontSize)
+        return Text((appState.annotations.textDraft?.text ?? "") + "  ")
+            .font(font)
             .fixedSize()
+            .hidden()
             .frame(minWidth: fontSize, alignment: .leading)
+            .overlay(alignment: .topLeading) {
+                TextField("", text: text, axis: .vertical)
+                    .textFieldStyle(.plain)
+                    .font(font)
+                    .foregroundStyle(appState.annotations.selectedColor)
+                    .focused($isTextFieldFocused)
+                    .frame(width: fieldWidth, alignment: .topLeading)
+            }
             .background(
                 RoundedRectangle(cornerRadius: 3)
                     .stroke(Color.accentColor.opacity(0.8), style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
