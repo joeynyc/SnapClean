@@ -23,6 +23,33 @@ struct MainWindow: View {
                 appState.capture.mainWindow = window
             }
         )
+        .alert(
+            appState.capture.lastCaptureError?.alertTitle ?? "",
+            isPresented: Binding(
+                get: { appState.capture.lastCaptureError != nil },
+                set: { if !$0 { appState.capture.lastCaptureError = nil } }
+            ),
+            presenting: appState.capture.lastCaptureError
+        ) { error in
+            if error == .permissionDenied {
+                Button("Open Settings") {
+                    appState.capture.openScreenCaptureSettings()
+                }
+            }
+            Button("OK", role: .cancel) {}
+        } message: { error in
+            Text(error.errorDescription ?? "")
+        }
+    }
+}
+
+private extension CaptureError {
+    var alertTitle: String {
+        switch self {
+        case .permissionDenied: return "Screen Recording Permission Needed"
+        case .captureFailed: return "Couldn’t Capture Screenshot"
+        case .saveFailed: return "Couldn’t Save Screenshot"
+        }
     }
 }
 
@@ -318,8 +345,7 @@ struct HistoryThumbnailView: View {
                 let path = item.filePath
                 let loaded = await Task.detached(priority: .userInitiated) { NSImage(contentsOfFile: path) }.value
                 if let image = loaded {
-                    appState.pinnedImage = image
-                    appState.showPinWindow = true
+                    appState.pinToScreen(image, sourcePath: path)
                 }
             }
         } label: {

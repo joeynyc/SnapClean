@@ -3,31 +3,19 @@ import SwiftUI
 struct PinWindow: View {
     @Environment(AppState.self) var appState
 
-    @State private var offset: CGSize = .zero
-    @State private var lastOffset: CGSize = .zero
     @State private var isHovering = false
 
     var body: some View {
         if let image = appState.pinnedImage {
             ZStack {
-                if appState.isTransparentBackground {
-                    // Checkerboard pattern for transparency
-                    CheckerboardPattern()
-                        .ignoresSafeArea()
-
-                    // Pinned image
-                    Image(nsImage: image)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .offset(offset)
-                } else {
-                    // Solid background with shadow
-                    Image(nsImage: image)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .shadow(color: .black.opacity(0.3), radius: 20, x: 0, y: 10)
-                        .offset(offset)
-                }
+                // The panel itself provides the (opaque or clear) background.
+                Image(nsImage: image)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .shadow(
+                        color: .black.opacity(appState.isTransparentBackground ? 0 : 0.3),
+                        radius: 20, x: 0, y: 10
+                    )
 
                 // Floating toolbar
                 VStack {
@@ -51,32 +39,13 @@ struct PinWindow: View {
                     isHovering = hovering
                 }
             }
-            .background(appState.isTransparentBackground ? Color.clear : Color(NSColor.windowBackgroundColor))
             .ignoresSafeArea()
-            .gesture(
-                DragGesture()
-                    .onChanged { value in
-                        offset = CGSize(
-                            width: lastOffset.width + value.translation.width,
-                            height: lastOffset.height + value.translation.height
-                        )
-                    }
-                    .onEnded { _ in
-                        lastOffset = offset
-                    }
-            )
-            .toolbar {
-                ToolbarItemGroup(placement: .automatic) {
-                    EmptyView()
-                }
-            }
         }
     }
 }
 
 struct PinToolbarView: View {
     @Environment(AppState.self) var appState
-    @State private var savedPath: String?
 
     var body: some View {
         HStack(spacing: 8) {
@@ -119,14 +88,7 @@ struct PinToolbarView: View {
 
             // Save
             Button {
-                if let image = appState.pinnedImage {
-                    if savedPath == nil {
-                        savedPath = appState.capture.screenCapture.saveImage(image, to: appState.history.historyManager.saveDirectory)
-                    }
-                    if let path = savedPath {
-                        appState.addToHistory(path: path, image: image)
-                    }
-                }
+                appState.savePinnedImage()
             } label: {
                 Image(systemName: "square.and.arrow.down")
                     .font(.system(size: 14, weight: .medium))
@@ -138,18 +100,12 @@ struct PinToolbarView: View {
                     )
             }
             .buttonStyle(.plain)
-            .help("Save to History Folder")
+            .disabled(appState.pinnedSourcePath != nil)
+            .help(appState.pinnedSourcePath != nil ? "Already saved" : "Save to History Folder")
 
             // Open in Finder
             Button {
-                if let image = appState.pinnedImage {
-                    if let path = savedPath {
-                        appState.capture.screenCapture.openInFinder(path)
-                    } else if let path = appState.capture.screenCapture.saveImage(image, to: appState.history.historyManager.saveDirectory) {
-                        savedPath = path
-                        appState.capture.screenCapture.openInFinder(path)
-                    }
-                }
+                appState.revealPinnedImage()
             } label: {
                 Image(systemName: "folder")
                     .font(.system(size: 14, weight: .medium))
@@ -168,8 +124,7 @@ struct PinToolbarView: View {
 
             // Close
             Button {
-                appState.showPinWindow = false
-                appState.pinnedImage = nil
+                appState.closePinnedImage()
             } label: {
                 Image(systemName: "xmark")
                     .font(.system(size: 12, weight: .medium))
@@ -189,34 +144,6 @@ struct PinToolbarView: View {
                 .fill(.ultraThinMaterial)
                 .shadow(color: .black.opacity(0.15), radius: 10, x: 0, y: 5)
         )
-    }
-}
-
-struct CheckerboardPattern: View {
-    let size: CGFloat = 20
-
-    var body: some View {
-        Canvas { context, canvasSize in
-            let columns = Int(canvasSize.width / size) + 1
-            let rows = Int(canvasSize.height / size) + 1
-
-            for row in 0..<rows {
-                for col in 0..<columns {
-                    let isLight = (row + col).isMultiple(of: 2)
-                    let rect = CGRect(
-                        x: CGFloat(col) * size,
-                        y: CGFloat(row) * size,
-                        width: size,
-                        height: size
-                    )
-                    context.fill(
-                        Path(rect),
-                        with: .color(isLight ? .gray.opacity(0.15) : .gray.opacity(0.25))
-                    )
-                }
-            }
-        }
-        .drawingGroup()
     }
 }
 

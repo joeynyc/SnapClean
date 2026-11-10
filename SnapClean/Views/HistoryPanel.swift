@@ -70,8 +70,7 @@ struct HistoryItemView: View {
                     let path = item.filePath
                     let loaded = await Task.detached(priority: .userInitiated) { NSImage(contentsOfFile: path) }.value
                     if let image = loaded {
-                        appState.pinnedImage = image
-                        appState.showPinWindow = true
+                        appState.pinToScreen(image, sourcePath: path)
                     }
                 }
             } label: {

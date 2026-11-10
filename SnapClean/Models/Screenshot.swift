@@ -12,7 +12,7 @@ enum CaptureMode: String, CaseIterable {
     case screen
 }
 
-enum CaptureError: LocalizedError {
+enum CaptureError: LocalizedError, Equatable {
     case permissionDenied
     case captureFailed(CaptureMode)
     case saveFailed(String)
@@ -180,13 +180,13 @@ extension AnnotationElement {
         )
     }
 
-    private static func normalize(_ point: CGPoint, in rect: CGRect) -> CGPoint {
+    static func normalize(_ point: CGPoint, in rect: CGRect) -> CGPoint {
         let normalizedX = (point.x - rect.minX) / rect.width
         let normalizedY = (point.y - rect.minY) / rect.height
         return CGPoint(x: clamp(normalizedX), y: clamp(normalizedY))
     }
 
-    private static func denormalize(_ point: CGPoint, in rect: CGRect) -> CGPoint {
+    static func denormalize(_ point: CGPoint, in rect: CGRect) -> CGPoint {
         CGPoint(
             x: rect.minX + point.x * rect.width,
             y: rect.minY + point.y * rect.height
@@ -196,6 +196,16 @@ extension AnnotationElement {
     private static func clamp(_ value: CGFloat) -> CGFloat {
         min(max(value, 0), 1)
     }
+}
+
+/// Text being typed into the editor's text box; it becomes an annotation when committed.
+struct TextDraft: Equatable {
+    /// Top-leading corner of the text, normalized to the image like committed annotations.
+    var origin: CGPoint
+    var text: String = ""
+    /// `min(width, height)` of the displayed image when the box was placed. On-screen sizes are
+    /// divided by this to normalize them, the same way `AnnotationElement.normalized` does.
+    var referenceDimension: CGFloat
 }
 
 struct ScreenshotItem: Identifiable, Codable {
@@ -257,7 +267,7 @@ final class CaptureState {
     func refreshScreenCapturePermissionStatus() {
         if currentScreenCaptureAccess() {
             screenCapturePermissionStatus = .granted
-            lastCaptureError = nil
+            clearPermissionError()
             return
         }
 
@@ -302,7 +312,7 @@ final class CaptureState {
     func hasUsableScreenCaptureAccess() async -> Bool {
         if currentScreenCaptureAccess() {
             screenCapturePermissionStatus = .granted
-            lastCaptureError = nil
+            clearPermissionError()
             return true
         }
 
@@ -318,7 +328,7 @@ final class CaptureState {
             let hasUsableContent = !content.displays.isEmpty
             if hasUsableContent {
                 screenCapturePermissionStatus = .granted
-                lastCaptureError = nil
+                clearPermissionError()
             }
             return hasUsableContent
         } catch {
@@ -335,13 +345,21 @@ final class CaptureState {
         let granted = CGRequestScreenCaptureAccess()
         screenCapturePermissionStatus = granted ? .granted : .denied
         if granted {
-            lastCaptureError = nil
+            clearPermissionError()
         }
         return granted
     }
 
     func revealMainWindowForPermissionGuidance() {
         revealMainWindow()
+    }
+
+    /// Permission checks run on every app activation, so they may only clear the error they own;
+    /// a capture or save failure must stay until the user dismisses it.
+    private func clearPermissionError() {
+        if lastCaptureError == .permissionDenied {
+            lastCaptureError = nil
+        }
     }
 }
 
@@ -351,7 +369,14 @@ final class CaptureState {
 final class AnnotationState {
     @ObservationIgnored private let maxUndoRedoDepth = 30
 
-    var selectedTool: AnnotationTool = .arrow
+    /// Text annotations use a font size of `lineWidth * textSizeMultiplier`.
+    nonisolated static let textSizeMultiplier: CGFloat = 8
+
+    var selectedTool: AnnotationTool = .arrow {
+        didSet {
+            if selectedTool != oldValue { commitTextDraft() }
+        }
+    }
     var selectedColor: Color = .red
     var lineWidth: CGFloat = 2.0
     var elements: [AnnotationElement] = []
@@ -359,6 +384,37 @@ final class AnnotationState {
     var redoStack: [[AnnotationElement]] = []
     private(set) var canUndo: Bool = false
     private(set) var canRedo: Bool = false
+    /// The text box currently being typed into, drawn with the live color and line width.
+    var textDraft: TextDraft?
+
+    /// Places a new text box at `point` (in `rect`'s coordinate space), committing any open one.
+    func beginTextDraft(at point: CGPoint, in rect: CGRect) {
+        commitTextDraft()
+        guard rect.width > 0, rect.height > 0 else { return }
+        textDraft = TextDraft(
+            origin: AnnotationElement.normalize(point, in: rect),
+            referenceDimension: max(min(rect.width, rect.height), 1)
+        )
+    }
+
+    /// Turns the open text box into an annotation; a box with only whitespace is discarded.
+    func commitTextDraft() {
+        guard let draft = textDraft else { return }
+        textDraft = nil
+        guard !draft.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        addAnnotation(AnnotationElement(
+            tool: .text,
+            points: [draft.origin],
+            color: selectedColor,
+            lineWidth: lineWidth / draft.referenceDimension,
+            text: draft.text,
+            fontSize: lineWidth * Self.textSizeMultiplier / draft.referenceDimension
+        ))
+    }
+
+    func cancelTextDraft() {
+        textDraft = nil
+    }
 
     func addAnnotation(_ element: AnnotationElement) {
         undoStack.append(elements)
@@ -372,6 +428,7 @@ final class AnnotationState {
     }
 
     func undo() {
+        commitTextDraft()
         guard let lastState = undoStack.popLast() else { return }
         redoStack.append(elements)
         if redoStack.count > maxUndoRedoDepth {
@@ -383,6 +440,7 @@ final class AnnotationState {
     }
 
     func redo() {
+        commitTextDraft()
         guard let nextState = redoStack.popLast() else { return }
         undoStack.append(elements)
         if undoStack.count > maxUndoRedoDepth {
@@ -394,6 +452,7 @@ final class AnnotationState {
     }
 
     func clearAnnotations() {
+        commitTextDraft()
         undoStack.append(elements)
         if undoStack.count > maxUndoRedoDepth {
             undoStack.removeFirst()
@@ -405,6 +464,7 @@ final class AnnotationState {
     }
 
     func resetAnnotationState() {
+        textDraft = nil
         elements = []
         undoStack = []
         redoStack = []
@@ -497,7 +557,11 @@ final class AppState {
         didSet { updatePinWindow() }
     }
     var pinnedImage: NSImage?
-    var isTransparentBackground = false
+    /// File backing the pinned image: set when pinned from History or after the first save, nil for an unsaved editor image.
+    private(set) var pinnedSourcePath: String?
+    var isTransparentBackground = false {
+        didSet { pinWindowController.setTransparentBackground(isTransparentBackground) }
+    }
 
     // Preferences (stored properties synced to UserDefaults via didSet)
     var copyAfterCapture: Bool = false {
@@ -559,9 +623,9 @@ final class AppState {
         setupNotifications()
         capture.refreshScreenCapturePermissionStatus()
         pinWindowController.onClose = { [weak self] in
-            self?.showPinWindow = false
-            self?.pinnedImage = nil
+            self?.closePinnedImage()
         }
+        pinWindowController.setTransparentBackground(isTransparentBackground)
     }
 
     private func setupNotifications() {
@@ -638,6 +702,8 @@ final class AppState {
 
     func handleCapturedImage(_ image: NSImage) {
         capture.capturedImage = image
+        // Annotations are normalized, so the previous shot's would be drawn over this one.
+        annotations.resetAnnotationState()
         let shouldShowMainWindow = showPreviewAfterCapture || capture.wasMainWindowVisibleBeforeCapture
         captureTimer?.invalidate()
         captureTimer = nil
@@ -654,6 +720,7 @@ final class AppState {
                 history.addToHistory(path: path, image: image, limit: historyLimit)
             } else {
                 capture.lastCaptureError = .saveFailed(history.historyManager.saveDirectory.path)
+                capture.revealMainWindow()
                 appLogger.error("Failed to save captured image to \(self.history.historyManager.saveDirectory.path, privacy: .public)")
             }
         }
@@ -666,16 +733,23 @@ final class AppState {
         capture.endCapture(showMainWindow: capture.wasMainWindowVisibleBeforeCapture)
     }
 
-    func endCaptureRestoringWindow() {
+    /// Ends a capture that produced no image. Pass `failure` to show it to the user; the main
+    /// window is then revealed even if it was closed, so the alert has somewhere to appear.
+    func endCaptureRestoringWindow(failure: CaptureError? = nil) {
         captureTimer?.invalidate()
         captureTimer = nil
-        capture.endCapture(showMainWindow: capture.wasMainWindowVisibleBeforeCapture)
+        if let failure {
+            capture.lastCaptureError = failure
+            appLogger.error("Capture ended with error: \(failure.localizedDescription, privacy: .public)")
+        }
+        capture.endCapture(showMainWindow: failure != nil || capture.wasMainWindowVisibleBeforeCapture)
     }
 
     func saveAnnotation() {
         let imageToSave = currentEditableImage()
         guard let imageToSave else { return }
         guard let savedPath = capture.screenCapture.saveImage(imageToSave, to: history.historyManager.saveDirectory) else {
+            capture.lastCaptureError = .saveFailed(history.historyManager.saveDirectory.path)
             appLogger.error("Failed to save annotation")
             return
         }
@@ -688,13 +762,45 @@ final class AppState {
         history.addToHistory(path: path, image: image, limit: historyLimit)
     }
 
-    func pinToScreen(_ image: NSImage) {
+    /// Pins an image. Pass `sourcePath` when the image was loaded from an existing file (e.g. History).
+    func pinToScreen(_ image: NSImage, sourcePath: String? = nil) {
         pinnedImage = image
+        pinnedSourcePath = sourcePath
         showPinWindow = true
     }
 
+    func closePinnedImage() {
+        showPinWindow = false
+        pinnedImage = nil
+        pinnedSourcePath = nil
+    }
+
+    /// Saves the pinned image once and records it in History. No-op if it already has a file.
+    func savePinnedImage() {
+        guard let image = pinnedImage, pinnedSourcePath == nil else { return }
+        guard let path = capture.screenCapture.saveImage(image, to: history.historyManager.saveDirectory) else {
+            capture.lastCaptureError = .saveFailed(history.historyManager.saveDirectory.path)
+            capture.revealMainWindow()
+            appLogger.error("Failed to save pinned image")
+            return
+        }
+        pinnedSourcePath = path
+        addToHistory(path: path, image: image)
+    }
+
+    /// Reveals the pinned image's file in Finder, saving it first if it has none.
+    func revealPinnedImage() {
+        if pinnedSourcePath == nil { savePinnedImage() }
+        if let path = pinnedSourcePath {
+            capture.screenCapture.openInFinder(path)
+        }
+    }
+
+    /// The captured image with annotations applied. Commits any open text box first, so
+    /// Copy, Save and Pin include text that is still being typed.
     func currentEditableImage() -> NSImage? {
-        renderAnnotatedImage() ?? capture.capturedImage
+        annotations.commitTextDraft()
+        return renderAnnotatedImage() ?? capture.capturedImage
     }
 
     // MARK: - Private Helpers
@@ -805,7 +911,7 @@ final class AppState {
         if let image = await capture.screenCapture.captureFullScreen() {
             handleCapturedImage(image)
         } else {
-            capture.endCapture(showMainWindow: capture.wasMainWindowVisibleBeforeCapture)
+            endCaptureRestoringWindow(failure: .captureFailed(.screen))
         }
     }
 }

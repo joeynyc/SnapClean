@@ -13,12 +13,29 @@ final class PinWindowController: NSObject, NSWindowDelegate {
         self.panel = panel
 
         panel.contentView = NSHostingView(rootView: PinWindow().environment(appState))
+        setTransparentBackground(appState.isTransparentBackground)
         panel.setContentSize(contentSize(for: image, on: NSScreen.main))
         if isNewPanel {
             panel.center()
         }
         panel.orderFrontRegardless()
         panel.makeKey()
+    }
+
+    /// Transparent: only the image floats (clear, non-opaque, no window shadow). Otherwise a solid window.
+    func setTransparentBackground(_ transparent: Bool) {
+        isTransparent = transparent
+        guard let panel else { return }
+        applyBackground(to: panel)
+    }
+
+    private var isTransparent = false
+
+    private func applyBackground(to panel: NSPanel) {
+        panel.isOpaque = !isTransparent
+        panel.backgroundColor = isTransparent ? .clear : .windowBackgroundColor
+        panel.hasShadow = !isTransparent
+        panel.invalidateShadow()
     }
 
     func hide() {
@@ -49,7 +66,9 @@ final class PinWindowController: NSObject, NSWindowDelegate {
         panel.isReleasedWhenClosed = false
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         panel.minSize = NSSize(width: 240, height: 180)
+        panel.isMovableByWindowBackground = true
         panel.delegate = self
+        applyBackground(to: panel)
         return panel
     }
 

@@ -11,14 +11,21 @@ final class CaptureOverlayWindowController {
         self.appState = appState
         installEscapeMonitorIfNeeded()
 
-        for screen in NSScreen.screens {
+        let screens = NSScreen.screens
+        // The primary display (menu bar) is the one at the Cocoa origin; NSScreen.screens[0] by documentation.
+        let primaryScreenHeight = (screens.first { $0.frame.origin == .zero } ?? screens.first)?.frame.height ?? 0
+
+        for screen in screens {
+            // With a `screen:` argument, `contentRect` is interpreted relative to that screen's origin,
+            // so start at .zero and then place the window on the screen's global frame explicitly.
             let window = NSWindow(
-                contentRect: screen.frame,
+                contentRect: CGRect(origin: .zero, size: screen.frame.size),
                 styleMask: [.borderless],
                 backing: .buffered,
                 defer: false,
                 screen: screen
             )
+            window.setFrame(screen.frame, display: false)
 
             window.isReleasedWhenClosed = false
             window.isOpaque = false
@@ -26,11 +33,23 @@ final class CaptureOverlayWindowController {
             window.hasShadow = false
             window.level = .screenSaver
             window.ignoresMouseEvents = false
+            window.acceptsMouseMovedEvents = true
             window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle]
             window.sharingType = .none
 
-            let rootView = CaptureOverlay(mode: mode)
-                .environment(appState)
+            // The overlay's own frame in display space (top-left origin), used to map overlay-local
+            // SwiftUI coordinates to the global display space ScreenCaptureKit uses.
+            let overlayDisplayFrame = CaptureGeometry.displayRect(
+                fromCocoa: window.frame,
+                primaryScreenHeight: primaryScreenHeight
+            )
+
+            let rootView = CaptureOverlay(
+                mode: mode,
+                overlayDisplayFrame: overlayDisplayFrame,
+                primaryScreenHeight: primaryScreenHeight
+            )
+            .environment(appState)
             window.contentView = NSHostingView(rootView: rootView)
 
             window.makeKeyAndOrderFront(nil)
@@ -38,9 +57,13 @@ final class CaptureOverlayWindowController {
         }
 
         NSApp.activate(ignoringOtherApps: true)
+        if mode == .region {
+            NSCursor.crosshair.set()
+        }
     }
 
     func hide() {
+        let wasShowing = !windows.isEmpty
         for window in windows {
             window.contentView = nil
             window.close()
@@ -49,6 +72,9 @@ final class CaptureOverlayWindowController {
         CATransaction.flush()
         removeEscapeMonitor()
         appState = nil
+        if wasShowing {
+            NSCursor.arrow.set()
+        }
     }
 
     private func installEscapeMonitorIfNeeded() {

@@ -11,6 +11,7 @@
 		1C32004A450CCE42DE5AD246 /* HotkeyManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = FDAD5CCBC715225FBC77C69F /* HotkeyManager.swift */; };
 		2720026A3EEA64C1DF36DB48 /* PinWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F493BBD51ECAD89390B1AA0 /* PinWindow.swift */; };
 		36B32C6FF1C2CF47D83D2C16 /* ScreenCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B1DC995657B34A68DF98B81 /* ScreenCapture.swift */; };
+		39DC170C7A6591588AE3EE28 /* CaptureGeometryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 233F062A108C6045BDB04F9F /* CaptureGeometryTests.swift */; };
 		3CAAFBF51B6F20508D15624E /* ServiceProtocols.swift in Sources */ = {isa = PBXBuildFile; fileRef = B485F2380FBA7A50DC0EEAEE /* ServiceProtocols.swift */; };
 		3D9AF1838B7AB0D6FDFA2D63 /* HistoryStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 883E6634E847B2B21D4C26F4 /* HistoryStateTests.swift */; };
 		46D564ED22B47B6351F949B7 /* AnnotationCanvas.swift in Sources */ = {isa = PBXBuildFile; fileRef = C67C1A5D30C7CA6660767053 /* AnnotationCanvas.swift */; };
@@ -19,6 +20,7 @@
 		8054B2249C94C40D6F848DFB /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 66D105A979FAE695B27471AF /* Assets.xcassets */; };
 		8C05D7EE210017399B877D69 /* SnapCleanApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 822CFEF9F44D7343D9CFBBEC /* SnapCleanApp.swift */; };
 		A2B23D89B1A3EF030C94DABF /* Screenshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65B71A1014464C8CD6A06516 /* Screenshot.swift */; };
+		AA14F3ED06976F6CE2688615 /* PinAndHotkeyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 416D0B864621605C756A9E69 /* PinAndHotkeyTests.swift */; };
 		BE2BE87B17318D648F30CA56 /* MainWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6AED29B025D3EE7B5532D97 /* MainWindow.swift */; };
 		C18FDC629D99250F8F942CC9 /* HotkeyShortcut.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2323E559F5BF37928CA7098 /* HotkeyShortcut.swift */; };
 		C8B86253579D5B6D6603DC7F /* ToolbarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61361985584152143691777F /* ToolbarView.swift */; };
@@ -43,7 +45,9 @@
 /* Begin PBXFileReference section */
 		11CEC64E05A9A064B0B9483D /* SnapClean.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SnapClean.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		1C674872497C779C2068C35C /* HistoryPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryPanel.swift; sourceTree = "<group>"; };
+		233F062A108C6045BDB04F9F /* CaptureGeometryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureGeometryTests.swift; sourceTree = "<group>"; };
 		3406F360816D0C5D731D47B2 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		416D0B864621605C756A9E69 /* PinAndHotkeyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PinAndHotkeyTests.swift; sourceTree = "<group>"; };
 		61361985584152143691777F /* ToolbarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolbarView.swift; sourceTree = "<group>"; };
 		65B71A1014464C8CD6A06516 /* Screenshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Screenshot.swift; sourceTree = "<group>"; };
 		66D105A979FAE695B27471AF /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -141,7 +145,9 @@
 			isa = PBXGroup;
 			children = (
 				AEA38B5D304DCAEF4266DF9D /* AnnotationModelTests.swift */,
+				233F062A108C6045BDB04F9F /* CaptureGeometryTests.swift */,
 				883E6634E847B2B21D4C26F4 /* HistoryStateTests.swift */,
+				416D0B864621605C756A9E69 /* PinAndHotkeyTests.swift */,
 			);
 			path = SnapCleanTests;
 			sourceTree = "<group>";
@@ -267,7 +273,9 @@
 			buildActionMask = 2147483647;
 			files = (
 				FCECB2EA4F10A6E72FB1EDBE /* AnnotationModelTests.swift in Sources */,
+				39DC170C7A6591588AE3EE28 /* CaptureGeometryTests.swift in Sources */,
 				3D9AF1838B7AB0D6FDFA2D63 /* HistoryStateTests.swift in Sources */,
+				AA14F3ED06976F6CE2688615 /* PinAndHotkeyTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

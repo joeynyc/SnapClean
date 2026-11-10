@@ -9,6 +9,9 @@ private let sharedCIContext = CIContext(options: [.useSoftwareRenderer: false])
 
 private let captureLogger = Logger(subsystem: "com.snapclean.app", category: "capture")
 
+/// A capturable window: its CGWindowID, a display name, and its frame in global display space.
+typealias CapturableWindow = (id: CGWindowID, name: String, bounds: CGRect)
+
 class ScreenCaptureService: ScreenCapturing {
     private let dateFormatter: DateFormatter = {
         let formatter = DateFormatter()
@@ -18,12 +21,15 @@ class ScreenCaptureService: ScreenCapturing {
 
     private let selfPID = ProcessInfo.processInfo.processIdentifier
 
+    /// - Parameter rect: Region in global display space (top-left origin of the primary display, points);
+    ///   see `CaptureGeometry` for the coordinate conventions.
     func captureRegion(rect: CGRect) async -> NSImage? {
         let captureRect = rect.integral
         guard captureRect.width > 0, captureRect.height > 0 else { return nil }
 
         do {
-            guard let cgImage = try await captureRectWithScreenCaptureKit(captureRect) else { return nil }
+            let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
+            guard let cgImage = try await captureRectWithScreenCaptureKit(captureRect, content: content) else { return nil }
             return NSImage(cgImage: cgImage, size: captureRect.size)
         } catch {
             captureLogger.error("Region capture failed: \(error.localizedDescription, privacy: .private)")
@@ -32,14 +38,13 @@ class ScreenCaptureService: ScreenCapturing {
     }
 
     func captureFullScreen() async -> NSImage? {
-        guard let first = NSScreen.screens.first else { return nil }
-        var unionRect = first.frame
-        for screen in NSScreen.screens.dropFirst() {
-            unionRect = unionRect.union(screen.frame)
-        }
-
         do {
-            guard let cgImage = try await captureRectWithScreenCaptureKit(unionRect) else { return nil }
+            let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
+            // SCDisplay.frame is already in global display space, unlike NSScreen.frame (Cocoa, bottom-left origin).
+            guard let unionRect = CaptureGeometry.union(of: content.displays.map(\.frame))?.integral,
+                  let cgImage = try await captureRectWithScreenCaptureKit(unionRect, content: content) else {
+                return nil
+            }
             return NSImage(cgImage: cgImage, size: unionRect.size)
         } catch {
             captureLogger.error("Full screen capture failed: \(error.localizedDescription, privacy: .private)")
@@ -58,8 +63,11 @@ class ScreenCaptureService: ScreenCapturing {
             let capture = try await captureWindowWithScreenCaptureKit(window, displays: content.displays)
             if capture.image.isLikelyBlank {
                 captureLogger.error("Desktop-independent window capture returned a blank image; falling back to window frame capture")
-                guard let fallbackImage = try await captureRectWithScreenCaptureKit(window.frame) else { return nil }
-                return NSImage(cgImage: fallbackImage, size: window.frame.size)
+                let fallbackRect = window.frame.integral
+                guard let fallbackImage = try await captureRectWithScreenCaptureKit(fallbackRect, content: content) else {
+                    return nil
+                }
+                return NSImage(cgImage: fallbackImage, size: fallbackRect.size)
             }
             return NSImage(cgImage: capture.image, size: capture.size)
         } catch {
@@ -68,11 +76,12 @@ class ScreenCaptureService: ScreenCapturing {
         }
     }
 
-    private func captureRectWithScreenCaptureKit(_ rect: CGRect) async throws -> CGImage? {
+    /// Captures `rect` (global display space) by grabbing the intersecting part of every display
+    /// and stitching the slices into one bitmap.
+    private func captureRectWithScreenCaptureKit(_ rect: CGRect, content: SCShareableContent) async throws -> CGImage? {
         let targetRect = rect.integral
         guard targetRect.width > 0, targetRect.height > 0 else { return nil }
 
-        let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
         let displays = content.displays.filter { $0.frame.intersects(targetRect) }
         guard !displays.isEmpty else { return nil }
 
@@ -110,12 +119,7 @@ class ScreenCaptureService: ScreenCapturing {
             let scale = displayScale(for: display)
 
             let configuration = SCStreamConfiguration()
-            configuration.sourceRect = CGRect(
-                x: sliceRect.minX - display.frame.minX,
-                y: sliceRect.minY - display.frame.minY,
-                width: sliceRect.width,
-                height: sliceRect.height
-            )
+            configuration.sourceRect = CaptureGeometry.sourceRect(forSlice: sliceRect, displayFrame: display.frame)
             configuration.width = max(Int((sliceRect.width * scale).rounded()), 1)
             configuration.height = max(Int((sliceRect.height * scale).rounded()), 1)
             configuration.showsCursor = false
@@ -125,11 +129,11 @@ class ScreenCaptureService: ScreenCapturing {
                 configuration: configuration
             )
 
-            let destination = CGRect(
-                x: (sliceRect.minX - targetRect.minX) * outputScale,
-                y: (sliceRect.minY - targetRect.minY) * outputScale,
-                width: sliceRect.width * outputScale,
-                height: sliceRect.height * outputScale
+            // The bitmap context has a bottom-left origin; the slice offsets are top-left based.
+            let destination = CaptureGeometry.stitchDestinationRect(
+                forSlice: sliceRect,
+                in: targetRect,
+                outputScale: outputScale
             )
             context.draw(image, in: destination)
             drewAnySlice = true
@@ -160,42 +164,72 @@ class ScreenCaptureService: ScreenCapturing {
     }
 
     private func displayScaleForWindow(_ window: SCWindow, displays: [SCDisplay]) -> CGFloat {
-        guard let display = displays.first(where: { $0.frame.intersects(window.frame) }) else { return 2.0 }
-        return displayScale(for: display)
+        // A window straddling displays gets the scale of the display holding most of it.
+        let best = displays.max { lhs, rhs in
+            CaptureGeometry.area(lhs.frame.intersection(window.frame))
+                < CaptureGeometry.area(rhs.frame.intersection(window.frame))
+        }
+        guard let best, best.frame.intersects(window.frame) else { return 2.0 }
+        return displayScale(for: best)
     }
 
+    /// Pixels per point for a display. `SCDisplay.width`/`height` are documented in points, so dividing
+    /// them by `frame.width` yields 1; read the backing scale from the current display mode instead.
     private func displayScale(for display: SCDisplay) -> CGFloat {
+        if let mode = CGDisplayCopyDisplayMode(display.displayID), mode.width > 0 {
+            let scale = CGFloat(mode.pixelWidth) / CGFloat(mode.width)
+            if scale.isFinite, scale >= 1 {
+                return scale
+            }
+        }
         guard display.frame.width > 0 else { return 2.0 }
         return max(CGFloat(display.width) / display.frame.width, 1.0)
     }
 
-    func getWindowList() async -> [(id: CGWindowID, name: String, bounds: CGRect)] {
+    /// Normal-layer, on-screen windows of other apps in global display space, ordered front to back
+    /// (frontmost first) so the overlay can pick the topmost window under the pointer.
+    func getWindowList() async -> [CapturableWindow] {
         do {
             let content = try await SCShareableContent.excludingDesktopWindows(true, onScreenWindowsOnly: true)
-            return content.windows.compactMap { window in
-                guard window.owningApplication?.processID != selfPID,
-                      window.owningApplication != nil,
-                      window.frame.width > 0,
-                      window.frame.height > 0 else {
-                    return nil
-                }
+            let candidates: [CaptureGeometry.WindowCandidate] = content.windows.compactMap { window in
+                guard let app = window.owningApplication, app.processID != selfPID else { return nil }
 
-                let appName = window.owningApplication?.applicationName
                 let title = window.title?.trimmingCharacters(in: .whitespacesAndNewlines)
-                let name = [appName, title].compactMap { value in
+                let name = [app.applicationName, title].compactMap { value -> String? in
                     guard let value, !value.isEmpty else { return nil }
                     return value
                 }.joined(separator: " - ")
 
-                return (
+                return CaptureGeometry.WindowCandidate(
                     id: window.windowID,
                     name: name.isEmpty ? "Window" : name,
-                    bounds: window.frame
+                    frame: window.frame,
+                    layer: window.windowLayer
                 )
             }
+
+            return CaptureGeometry
+                .selectableWindowsFrontToBack(candidates, zOrder: Self.onScreenWindowZOrder())
+                .map { (id: $0.id, name: $0.name, bounds: $0.frame) }
         } catch {
             captureLogger.error("Failed to load ScreenCaptureKit window list: \(error.localizedDescription, privacy: .private)")
             return []
+        }
+    }
+
+    /// The on-screen window stacking order. `SCShareableContent.windows` has no documented order, but
+    /// `kCGWindowListOptionOnScreenOnly` is documented (CGWindow.h) as "ordered from front to back".
+    private static func onScreenWindowZOrder() -> [CaptureGeometry.WindowOrderEntry] {
+        guard let info = CGWindowListCopyWindowInfo(
+            [.optionOnScreenOnly, .excludeDesktopElements],
+            kCGNullWindowID
+        ) as? [[String: Any]] else {
+            return []
+        }
+        return info.compactMap { entry in
+            guard let number = entry[kCGWindowNumber as String] as? NSNumber else { return nil }
+            let alpha = (entry[kCGWindowAlpha as String] as? NSNumber)?.doubleValue ?? 1
+            return CaptureGeometry.WindowOrderEntry(id: CGWindowID(number.uint32Value), alpha: alpha)
         }
     }
 
@@ -239,6 +273,172 @@ class ScreenCaptureService: ScreenCapturing {
 
     func openInFinder(_ path: String) {
         NSWorkspace.shared.selectFile(path, inFileViewerRootedAtPath: "")
+    }
+}
+
+// MARK: - Capture Geometry
+
+/// Pure coordinate math for capture. No AppKit screen lookups, so it can be unit-tested with synthetic layouts.
+///
+/// Coordinate spaces:
+/// - **Cocoa** (`NSScreen.frame`, `NSWindow.frame`, `NSEvent.mouseLocation`): points, origin at the
+///   bottom-left of the primary display (the one with the menu bar), y grows upward.
+/// - **Display** (`CGDisplayBounds`, `SCDisplay.frame`, `SCWindow.frame`, CGWindowList bounds): points,
+///   origin at the top-left of the primary display, y grows downward.
+/// - **Overlay-local**: points relative to the top-left of one capture overlay window, which exactly
+///   covers one screen, y grows downward. This is SwiftUI's `.global` space inside the overlay's hosting view.
+enum CaptureGeometry {
+    /// Converts a Cocoa rect to display space. `primaryScreenHeight` is the height of the primary display
+    /// (the screen whose Cocoa frame origin is `.zero`).
+    static func displayRect(fromCocoa rect: CGRect, primaryScreenHeight: CGFloat) -> CGRect {
+        CGRect(x: rect.minX, y: primaryScreenHeight - rect.maxY, width: rect.width, height: rect.height)
+    }
+
+    static func displayPoint(fromCocoa point: CGPoint, primaryScreenHeight: CGFloat) -> CGPoint {
+        CGPoint(x: point.x, y: primaryScreenHeight - point.y)
+    }
+
+    /// Converts an overlay-local rect to display space, given the overlay's own frame in display space.
+    static func displayRect(fromOverlayLocal rect: CGRect, overlayDisplayFrame: CGRect) -> CGRect {
+        rect.offsetBy(dx: overlayDisplayFrame.minX, dy: overlayDisplayFrame.minY)
+    }
+
+    static func overlayLocalRect(fromDisplay rect: CGRect, overlayDisplayFrame: CGRect) -> CGRect {
+        rect.offsetBy(dx: -overlayDisplayFrame.minX, dy: -overlayDisplayFrame.minY)
+    }
+
+    static func overlayLocalPoint(fromDisplay point: CGPoint, overlayDisplayFrame: CGRect) -> CGPoint {
+        CGPoint(x: point.x - overlayDisplayFrame.minX, y: point.y - overlayDisplayFrame.minY)
+    }
+
+    static func union(of rects: [CGRect]) -> CGRect? {
+        let valid = rects.filter { !$0.isNull && !$0.isEmpty }
+        guard let first = valid.first else { return nil }
+        return valid.dropFirst().reduce(first) { $0.union($1) }
+    }
+
+    static func area(_ rect: CGRect) -> CGFloat {
+        rect.isNull ? 0 : rect.width * rect.height
+    }
+
+    /// `SCStreamConfiguration.sourceRect` for a slice: display-local points, top-left origin.
+    static func sourceRect(forSlice slice: CGRect, displayFrame: CGRect) -> CGRect {
+        slice.offsetBy(dx: -displayFrame.minX, dy: -displayFrame.minY)
+    }
+
+    /// Where a slice (display space) of `target` (display space) is drawn in an output bitmap context
+    /// whose origin is bottom-left, in pixels.
+    static func stitchDestinationRect(forSlice slice: CGRect, in target: CGRect, outputScale: CGFloat) -> CGRect {
+        CGRect(
+            x: (slice.minX - target.minX) * outputScale,
+            y: (target.maxY - slice.maxY) * outputScale,
+            width: slice.width * outputScale,
+            height: slice.height * outputScale
+        )
+    }
+
+    // MARK: Window picker
+
+    struct WindowCandidate: Equatable {
+        let id: CGWindowID
+        let name: String
+        /// Display space.
+        let frame: CGRect
+        let layer: Int
+    }
+
+    struct WindowOrderEntry: Equatable {
+        let id: CGWindowID
+        let alpha: Double
+    }
+
+    /// Windows smaller than this (in points, either dimension) are not offered: they are almost always
+    /// helper or status windows rather than something a user means to capture.
+    static let minimumSelectableWindowSize: CGFloat = 40
+
+    /// Keeps normal-layer (`layer == 0`) windows of a sensible size, drops fully transparent ones, and orders
+    /// them front to back using the CGWindowList stacking order. Windows missing from `zOrder` go last,
+    /// keeping their relative order; with an empty `zOrder` the input order is kept.
+    static func selectableWindowsFrontToBack(
+        _ candidates: [WindowCandidate],
+        zOrder: [WindowOrderEntry],
+        minimumSize: CGFloat = minimumSelectableWindowSize
+    ) -> [WindowCandidate] {
+        var rank: [CGWindowID: Int] = [:]
+        var alpha: [CGWindowID: Double] = [:]
+        for (index, entry) in zOrder.enumerated() where rank[entry.id] == nil {
+            rank[entry.id] = index
+            alpha[entry.id] = entry.alpha
+        }
+
+        let selectable = candidates.enumerated().filter { _, window in
+            window.layer == 0
+                && window.frame.width >= minimumSize
+                && window.frame.height >= minimumSize
+                && (alpha[window.id] ?? 1) > 0
+        }
+
+        return selectable.sorted { lhs, rhs in
+            let lhsRank = rank[lhs.element.id] ?? Int.max
+            let rhsRank = rank[rhs.element.id] ?? Int.max
+            if lhsRank != rhsRank { return lhsRank < rhsRank }
+            return lhs.offset < rhs.offset
+        }.map(\.element)
+    }
+
+    /// The windows (display space, front to back) that are visible on an overlay, converted to overlay-local
+    /// coordinates and clipped to the overlay. Order is preserved.
+    static func overlayWindows(
+        _ windows: [CapturableWindow],
+        overlayDisplayFrame: CGRect
+    ) -> [CapturableWindow] {
+        let overlayBounds = CGRect(origin: .zero, size: overlayDisplayFrame.size)
+        return windows.compactMap { window in
+            let local = overlayLocalRect(fromDisplay: window.bounds, overlayDisplayFrame: overlayDisplayFrame)
+                .intersection(overlayBounds)
+            guard !local.isNull, local.width > 0, local.height > 0 else { return nil }
+            return (id: window.id, name: window.name, bounds: local)
+        }
+    }
+
+    /// The frontmost window containing `point`, given windows ordered front to back.
+    static func frontmostWindow(at point: CGPoint, in windows: [CapturableWindow]) -> CapturableWindow? {
+        windows.first { $0.bounds.contains(point) }
+    }
+
+    // MARK: Image effects
+
+    /// Blur radius (points) used for a given annotation `amount`. CIGaussianBlur's radius is roughly the
+    /// standard deviation; at the editor's default amount (6) a 6 pt radius leaves body text legible,
+    /// so the radius is doubled and never drops below 12 pt.
+    static let blurRadiusMultiplier: CGFloat = 2
+    static let minimumBlurRadiusPoints: CGFloat = 12
+
+    /// CIGaussianBlur radius in pixels for an image with `pixelScale` pixels per point.
+    static func blurRadiusPixels(amount: CGFloat, pixelScale: CGFloat) -> CGFloat {
+        max(amount * blurRadiusMultiplier, minimumBlurRadiusPoints) * max(pixelScale, 1)
+    }
+
+    /// Converts a rect in image points (top-left origin) into an integral pixel rect with Core Image's
+    /// bottom-left origin, expanded outward to whole pixels and clipped to the image.
+    static func imagePixelRect(
+        forTopLeftPointRect rect: CGRect,
+        imagePointSize: CGSize,
+        imagePixelSize: CGSize
+    ) -> CGRect? {
+        guard imagePointSize.width > 0, imagePointSize.height > 0 else { return nil }
+        let scaleX = imagePixelSize.width / imagePointSize.width
+        let scaleY = imagePixelSize.height / imagePointSize.height
+        let pixelRect = CGRect(
+            x: rect.minX * scaleX,
+            y: (imagePointSize.height - rect.maxY) * scaleY,
+            width: rect.width * scaleX,
+            height: rect.height * scaleY
+        )
+        .integral
+        .intersection(CGRect(origin: .zero, size: imagePixelSize))
+        guard !pixelRect.isNull, pixelRect.width > 0, pixelRect.height > 0 else { return nil }
+        return pixelRect
     }
 }
 
@@ -294,63 +494,55 @@ extension NSImage {
         }
     }
 
+    /// Pixelates `rect` (image points, top-left origin). `amount` is the block size in points.
     func pixelate(amount: CGFloat, rect: CGRect) -> NSImage? {
-        guard let cgImage = self.cgImage(forProposedRect: nil, context: nil, hints: nil),
-              let filter = CIFilter(name: "CIPixellate") else {
-            return nil
+        applyingRegionEffect(rect: rect) { regionInput, pixelRect, pixelScale in
+            guard let filter = CIFilter(name: "CIPixellate") else { return nil }
+            filter.setValue(regionInput, forKey: kCIInputImageKey)
+            filter.setValue(max(amount * pixelScale, 1), forKey: kCIInputScaleKey)
+            // Anchor the block grid to the region instead of the filter's default (150, 150).
+            filter.setValue(CIVector(x: pixelRect.minX, y: pixelRect.minY), forKey: kCIInputCenterKey)
+            return filter.outputImage
         }
-
-        let ciImage = CIImage(cgImage: cgImage)
-        let scaleX = ciImage.extent.width / self.size.width
-        let scaleY = ciImage.extent.height / self.size.height
-
-        let ciRect = CGRect(
-            x: rect.origin.x * scaleX,
-            y: (self.size.height - rect.origin.y - rect.height) * scaleY,
-            width: rect.width * scaleX,
-            height: rect.height * scaleY
-        )
-
-        filter.setValue(ciImage, forKey: kCIInputImageKey)
-        filter.setValue(amount * max(scaleX, scaleY), forKey: kCIInputScaleKey)
-
-        guard let outputCIImage = filter.outputImage else { return nil }
-
-        let croppedOutput = outputCIImage.cropped(to: ciRect)
-        let composited = croppedOutput.composited(over: ciImage)
-
-        guard let resultCGImage = sharedCIContext.createCGImage(composited, from: ciImage.extent) else {
-            return nil
-        }
-
-        return NSImage(cgImage: resultCGImage, size: self.size)
     }
 
+    /// Blurs `rect` (image points, top-left origin) strongly enough to redact text.
+    /// The radius scales with the image's pixel density; see `CaptureGeometry.blurRadiusPixels`.
     func blur(amount: CGFloat, rect: CGRect) -> NSImage? {
-        guard let cgImage = self.cgImage(forProposedRect: nil, context: nil, hints: nil),
-              let filter = CIFilter(name: "CIGaussianBlur") else {
+        applyingRegionEffect(rect: rect) { regionInput, _, pixelScale in
+            guard let filter = CIFilter(name: "CIGaussianBlur") else { return nil }
+            filter.setValue(regionInput, forKey: kCIInputImageKey)
+            filter.setValue(
+                CaptureGeometry.blurRadiusPixels(amount: amount, pixelScale: pixelScale),
+                forKey: kCIInputRadiusKey
+            )
+            return filter.outputImage
+        }
+    }
+
+    /// Runs `effect` on the pixels inside `rect` only and composites the result back over the image.
+    /// The effect input is the region cropped and edge-clamped, so the result only depends on pixels inside
+    /// the region and never fades to transparent at the region or image edges.
+    private func applyingRegionEffect(
+        rect: CGRect,
+        effect: (_ regionInput: CIImage, _ pixelRect: CGRect, _ pixelScale: CGFloat) -> CIImage?
+    ) -> NSImage? {
+        guard let cgImage = self.cgImage(forProposedRect: nil, context: nil, hints: nil) else { return nil }
+
+        let ciImage = CIImage(cgImage: cgImage)
+        guard let pixelRect = CaptureGeometry.imagePixelRect(
+            forTopLeftPointRect: rect,
+            imagePointSize: size,
+            imagePixelSize: ciImage.extent.size
+        ) else {
             return nil
         }
 
-        let ciImage = CIImage(cgImage: cgImage)
-        let scaleX = ciImage.extent.width / self.size.width
-        let scaleY = ciImage.extent.height / self.size.height
+        let pixelScale = max(ciImage.extent.width / size.width, ciImage.extent.height / size.height)
+        let regionInput = ciImage.cropped(to: pixelRect).clampedToExtent()
+        guard let output = effect(regionInput, pixelRect, pixelScale) else { return nil }
 
-        let ciRect = CGRect(
-            x: rect.origin.x * scaleX,
-            y: (self.size.height - rect.origin.y - rect.height) * scaleY,
-            width: rect.width * scaleX,
-            height: rect.height * scaleY
-        )
-
-        filter.setValue(ciImage, forKey: kCIInputImageKey)
-        filter.setValue(amount, forKey: kCIInputRadiusKey)
-
-        guard let outputCIImage = filter.outputImage else { return nil }
-
-        let croppedOutput = outputCIImage.cropped(to: ciRect)
-        let composited = croppedOutput.composited(over: ciImage)
-
+        let composited = output.cropped(to: pixelRect).composited(over: ciImage)
         guard let resultCGImage = sharedCIContext.createCGImage(composited, from: ciImage.extent) else {
             return nil
         }
