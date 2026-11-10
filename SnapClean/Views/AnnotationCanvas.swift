@@ -510,6 +510,7 @@ struct AnnotationRenderer: View {
 
 struct BottomToolbarView: View {
     @Environment(AppState.self) var appState
+    @State private var shareAnchor = SharingAnchor()
 
     var body: some View {
         HStack(spacing: 20) {
@@ -535,6 +536,17 @@ struct BottomToolbarView: View {
                     if let image = appState.currentEditableImage() {
                         appState.pinToScreen(image)
                     }
+                }
+
+                ActionButton(icon: "square.and.arrow.up", label: "Share") {
+                    guard let url = appState.exportEditorImageForSharing() else { return }
+                    shareAnchor.showPicker(items: [url])
+                }
+                .sharingAnchor(shareAnchor)
+
+                DragOutHandle {
+                    appState.exportEditorImageForSharing()
+                        .map(ScreenshotDragItem.provider(forFileAt:)) ?? NSItemProvider()
                 }
             }
 

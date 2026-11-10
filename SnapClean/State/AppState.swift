@@ -33,6 +33,12 @@ final class AppState {
     var timerDuration: Int = 3 {
         didSet { UserDefaults.standard.set(timerDuration, forKey: "timerDuration") }
     }
+    /// Editor or floating thumbnail; only used while `showPreviewAfterCapture` is on.
+    var afterCaptureAction: AfterCaptureAction = .openEditor {
+        didSet { afterCaptureAction.store(in: .standard) }
+    }
+    /// The post-capture thumbnail shown when `afterCaptureAction` is `.floatingThumbnail`.
+    let floatingThumbnail: FloatingThumbnailState
     /// Custom global shortcuts; modes without an entry use `HotkeyShortcut.defaultShortcut(for:)`.
     private(set) var shortcuts: [CaptureMode: HotkeyShortcut] = [:]
     /// While true, global hotkeys are unregistered so the shortcut recorder receives every key press.
@@ -57,10 +63,14 @@ final class AppState {
     @ObservationIgnored private let pinWindowController = PinWindowController()
 
     init(screenCapture: ScreenCapturing = ScreenCaptureService(),
-         historyManager: HistoryPersisting = ScreenshotHistoryManager()) {
+         historyManager: HistoryPersisting = ScreenshotHistoryManager(),
+         thumbnailPresenter: FloatingThumbnailPresenting? = nil) {
         self.capture = CaptureState(screenCapture: screenCapture)
         self.annotations = AnnotationState()
         self.history = HistoryState(historyManager: historyManager)
+        self.floatingThumbnail = FloatingThumbnailState(
+            presenter: thumbnailPresenter ?? FloatingThumbnailWindowController()
+        )
 
         // Load preferences from UserDefaults
         self.copyAfterCapture = UserDefaults.standard.bool(forKey: "copyAfterCapture")
@@ -68,6 +78,7 @@ final class AppState {
             ? true : UserDefaults.standard.bool(forKey: "showPreviewAfterCapture")
         self.timerDuration = UserDefaults.standard.object(forKey: "timerDuration") == nil
             ? 3 : max(UserDefaults.standard.integer(forKey: "timerDuration"), 0)
+        self.afterCaptureAction = AfterCaptureAction.load(from: .standard)
         let rawLimit = UserDefaults.standard.integer(forKey: "historyLimit")
         self.historyLimit = rawLimit > 0 ? rawLimit : 50
         for mode in CaptureMode.allCases {
@@ -86,6 +97,7 @@ final class AppState {
             self?.closePinnedImage()
         }
         pinWindowController.setTransparentBackground(isTransparentBackground)
+        floatingThumbnail.actions = self
     }
 
     private func setupNotifications() {
@@ -161,6 +173,10 @@ final class AppState {
     }
 
     func handleCapturedImage(_ image: NSImage) {
+        if AfterCaptureOutcome(showPreview: showPreviewAfterCapture, action: afterCaptureAction) == .showFloatingThumbnail {
+            showFloatingThumbnail(for: image)
+            return
+        }
         capture.capturedImage = image
         // Annotations are normalized, so the previous shot's would be drawn over this one.
         annotations.resetAnnotationState()

@@ -92,6 +92,8 @@ struct HistoryItemView: View {
                 }
             }
             .buttonStyle(.plain)
+            // Click pins it; dragging drops the saved file into Finder, Mail, Slack, ...
+            .onDrag { ScreenshotDragItem.provider(forSavedFileAtPath: item.filePath) }
             // New items get their thumbnail file shortly after they appear; the revision triggers a reload.
             .task(id: appState.history.thumbnailRevisions[item.id] ?? 0) {
                 let url = appState.history.historyManager.thumbnailURL(for: item.id)

@@ -156,12 +156,27 @@ struct GeneralPreferencesView: View {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Show preview after capture")
                             .font(.system(size: 13, weight: .medium, design: .rounded))
-                        Text("Display annotation editor after taking screenshot")
+                        Text("Off saves screenshots straight to Downloads")
                             .font(.system(size: 11, design: .rounded))
                             .foregroundStyle(.secondary)
                     }
                 }
                 .toggleStyle(PreferencesToggleStyle())
+
+                HStack(spacing: 12) {
+                    Text("After capture:")
+                        .font(.system(size: 13, weight: .medium, design: .rounded))
+                    Picker("After capture:", selection: $appState.afterCaptureAction) {
+                        ForEach(AfterCaptureAction.allCases) { action in
+                            Text(action.title).tag(action)
+                        }
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.segmented)
+                    .fixedSize()
+                }
+                .disabled(!appState.showPreviewAfterCapture)
+                .help("A floating thumbnail saves itself to Downloads after a few seconds unless you close it")
 
                 Toggle(isOn: launchAtLoginBinding) {
                     VStack(alignment: .leading, spacing: 4) {

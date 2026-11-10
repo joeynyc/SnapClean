@@ -46,6 +46,7 @@ struct PinWindow: View {
 
 struct PinToolbarView: View {
     @Environment(AppState.self) var appState
+    @State private var shareAnchor = SharingAnchor()
 
     var body: some View {
         HStack(spacing: 8) {
@@ -85,6 +86,24 @@ struct PinToolbarView: View {
             }
             .buttonStyle(.plain)
             .help("Copy to clipboard")
+
+            // Share
+            Button {
+                guard let url = appState.exportPinnedImageForSharing() else { return }
+                shareAnchor.showPicker(items: [url])
+            } label: {
+                Image(systemName: "square.and.arrow.up")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(.primary)
+                    .frame(width: 32, height: 32)
+                    .background(
+                        Circle()
+                            .fill(.ultraThinMaterial)
+                    )
+            }
+            .buttonStyle(.plain)
+            .sharingAnchor(shareAnchor)
+            .help("Share")
 
             // Save
             Button {

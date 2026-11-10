@@ -65,7 +65,8 @@ final class PinWindowController: NSObject, NSWindowDelegate {
         panel.hidesOnDeactivate = false
         panel.isReleasedWhenClosed = false
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-        panel.minSize = NSSize(width: 240, height: 180)
+        // Wide enough for the hover toolbar.
+        panel.minSize = NSSize(width: 290, height: 180)
         panel.isMovableByWindowBackground = true
         panel.delegate = self
         applyBackground(to: panel)
@@ -80,7 +81,7 @@ final class PinWindowController: NSObject, NSWindowDelegate {
 
         let scale = min(maxSize.width / image.size.width, maxSize.height / image.size.height, 1)
         return NSSize(
-            width: max(image.size.width * scale, 240),
+            width: max(image.size.width * scale, 290),
             height: max(image.size.height * scale, 180)
         )
     }

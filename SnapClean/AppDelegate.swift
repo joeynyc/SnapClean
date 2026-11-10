@@ -13,6 +13,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        // A capture still showing as a floating thumbnail is saved, as it would be on timeout.
+        appState.floatingThumbnail.finish(.appTerminating)
         HotkeyManager.shared.unregisterAll()
     }
 
