@@ -274,22 +274,30 @@ class ScreenCaptureService: ScreenCapturing {
         pasteboard.writeObjects([image])
     }
 
-    /// Encodes PNG off the main thread, then writes the pasteboard on the calling actor.
+    /// Encodes PNG and TIFF off the main thread, then writes the pasteboard on the calling actor.
+    /// Both types are offered because some apps only read TIFF, the classic image pasteboard type.
     func copyToClipboardInBackground(_ image: NSImage) async {
         guard let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
             copyToClipboard(image)
             return
         }
-        let data = await Task.detached(priority: .userInitiated) {
-            NSBitmapImageRep(cgImage: cgImage).representation(using: .png, properties: [:])
+        let pointSize = image.size
+        let encoded = await Task.detached(priority: .userInitiated) { () -> (png: Data, tiff: Data)? in
+            let rep = NSBitmapImageRep(cgImage: cgImage)
+            rep.size = pointSize
+            guard let png = rep.representation(using: .png, properties: [:]),
+                  let tiff = rep.tiffRepresentation else { return nil }
+            return (png, tiff)
         }.value
-        guard let data else {
+        guard let encoded else {
             copyToClipboard(image)
             return
         }
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
-        pasteboard.setData(data, forType: .png)
+        pasteboard.declareTypes([.png, .tiff], owner: nil)
+        pasteboard.setData(encoded.png, forType: .png)
+        pasteboard.setData(encoded.tiff, forType: .tiff)
     }
 
     func openInFinder(_ path: String) {
