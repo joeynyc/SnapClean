@@ -26,6 +26,7 @@ class ScreenshotHistoryManager: HistoryPersisting {
     let saveDirectory: URL
     let storeDirectory: URL
     private let historyFileURL: URL
+    let thumbnailsDirectory: URL
 
     /// Only files inside the app-owned store may be deleted automatically; screenshots in
     /// the user's own folders (like Downloads) are never removed by history trimming or clearing.
@@ -40,34 +41,80 @@ class ScreenshotHistoryManager: HistoryPersisting {
         self.saveDirectory = saveDirectory
         self.storeDirectory = storeDirectory
         historyFileURL = storeDirectory.appendingPathComponent(historyFileName)
+        thumbnailsDirectory = storeDirectory.appendingPathComponent("Thumbnails", isDirectory: true)
         try? FileManager.default.createDirectory(at: storeDirectory, withIntermediateDirectories: true)
         migrateFromLegacyUserDefaultsIfNeeded()
     }
 
     func saveHistory(_ history: [ScreenshotItem]) {
         ioQueue.async { [historyFileURL] in
-            do {
-                let data = try JSONEncoder().encode(history)
-                try data.write(to: historyFileURL, options: .atomic)
-                // Set restrictive file permissions (owner-only read/write)
-                try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: historyFileURL.path)
-            } catch {
-                historyLogger.error("Failed to save history: \(error.localizedDescription, privacy: .private)")
+            Self.writeHistory(history, to: historyFileURL)
+        }
+    }
+
+    private static func writeHistory(_ history: [ScreenshotItem], to historyFileURL: URL) {
+        do {
+            let data = try JSONEncoder().encode(history)
+            try data.write(to: historyFileURL, options: .atomic)
+            // Set restrictive file permissions (owner-only read/write)
+            try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: historyFileURL.path)
+        } catch {
+            historyLogger.error("Failed to save history: \(error.localizedDescription, privacy: .private)")
+        }
+    }
+
+    // MARK: Thumbnails
+
+    func thumbnailURL(for id: UUID) -> URL {
+        thumbnailsDirectory.appendingPathComponent("\(id.uuidString).jpg")
+    }
+
+    func saveThumbnail(_ data: Data, for id: UUID) async {
+        await withCheckedContinuation { continuation in
+            ioQueue.async { [self] in
+                writeThumbnail(data, for: id)
+                continuation.resume()
+            }
+        }
+    }
+
+    private func writeThumbnail(_ data: Data, for id: UUID) {
+        do {
+            try FileManager.default.createDirectory(at: thumbnailsDirectory, withIntermediateDirectories: true)
+            let url = thumbnailURL(for: id)
+            try data.write(to: url, options: .atomic)
+            try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
+        } catch {
+            historyLogger.error("Failed to save thumbnail: \(error.localizedDescription, privacy: .private)")
+        }
+    }
+
+    func removeThumbnails(for ids: [UUID]) {
+        ioQueue.async { [self] in
+            for id in ids {
+                try? FileManager.default.removeItem(at: thumbnailURL(for: id))
             }
         }
     }
 
     func loadHistory() async -> [ScreenshotItem] {
         await withCheckedContinuation { continuation in
-            ioQueue.async { [historyFileURL] in
+            ioQueue.async { [self, historyFileURL] in
                 guard let data = try? Data(contentsOf: historyFileURL),
                       let history = try? JSONDecoder().decode([ScreenshotItem].self, from: data) else {
                     continuation.resume(returning: [])
                     return
                 }
-                continuation.resume(returning: history.filter {
-                    FileManager.default.fileExists(atPath: $0.filePath)
-                })
+                var kept = history.filter { FileManager.default.fileExists(atPath: $0.filePath) }
+                // Older versions stored thumbnails inline in history.json: move them to files and drop them from the JSON.
+                if history.contains(where: { $0.legacyThumbnail != nil }) {
+                    for item in history {
+                        if let thumbnail = item.legacyThumbnail { self.writeThumbnail(thumbnail, for: item.id) }
+                    }
+                    kept = kept.map { ScreenshotItem(id: $0.id, date: $0.date, filePath: $0.filePath) }
+                    Self.writeHistory(kept, to: self.historyFileURL)
+                }
+                continuation.resume(returning: kept)
             }
         }
     }
@@ -97,13 +144,13 @@ class ScreenshotHistoryManager: HistoryPersisting {
     private func migrateFromLegacyUserDefaultsIfNeeded() {
         guard !FileManager.default.fileExists(atPath: historyFileURL.path),
               let data = UserDefaults.standard.data(forKey: historyKey),
-              let history = try? JSONDecoder().decode([ScreenshotItem].self, from: data) else {
+              (try? JSONDecoder().decode([ScreenshotItem].self, from: data)) != nil else {
             return
         }
 
         do {
-            let encoded = try JSONEncoder().encode(history)
-            try encoded.write(to: historyFileURL, options: .atomic)
+            // Write the original bytes: inline thumbnails are moved to files by the next load.
+            try data.write(to: historyFileURL, options: .atomic)
             UserDefaults.standard.removeObject(forKey: historyKey)
         } catch {
             historyLogger.error("Failed to migrate history store: \(error.localizedDescription, privacy: .private)")

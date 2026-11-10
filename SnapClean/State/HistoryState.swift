@@ -6,6 +6,9 @@ import SwiftUI
 final class HistoryState {
     var screenshotHistory: [ScreenshotItem] = []
     let historyManager: HistoryPersisting
+    /// Bumped when an item's thumbnail file is written, so views reload it.
+    private(set) var thumbnailRevisions: [UUID: Int] = [:]
+    @ObservationIgnored private var thumbnailTasks: [UUID: Task<Void, Never>] = [:]
 
     init(historyManager: HistoryPersisting = ScreenshotHistoryManager()) {
         self.historyManager = historyManager
@@ -13,33 +16,37 @@ final class HistoryState {
 
     func addToHistory(path: String, image: NSImage, limit: Int) {
         let itemID = UUID()
-        let capturedAt = Date()
-
-        let item = ScreenshotItem(id: itemID, date: capturedAt, filePath: path, thumbnail: nil)
+        let item = ScreenshotItem(id: itemID, date: Date(), filePath: path)
         screenshotHistory.insert(item, at: 0)
         let removed = trimHistoryToLimit(limit: limit)
+        // history.json holds metadata only, so it is written once per capture.
         historyManager.saveHistory(screenshotHistory)
         if !removed.isEmpty {
             historyManager.removeFiles(atPaths: removed.map(\.filePath))
+            historyManager.removeThumbnails(for: removed.map(\.id))
         }
 
-        DispatchQueue.global(qos: .utility).async { [weak self] in
+        let source = SendableImage(image: image)
+        thumbnailTasks[itemID] = Task { @MainActor [weak self] in
+            let data = await Task.detached(priority: .utility) {
+                source.image.jpegThumbnailData(maxSize: NSSize(width: 300, height: 200))
+            }.value
             guard let self else { return }
-            let thumbnail = image.jpegThumbnailData(maxSize: NSSize(width: 300, height: 200))
-            Task { @MainActor [weak self] in
-                guard let self else { return }
-                guard let index = self.screenshotHistory.firstIndex(where: { $0.id == itemID }) else {
-                    return
-                }
-                self.screenshotHistory[index] = ScreenshotItem(
-                    id: itemID,
-                    date: capturedAt,
-                    filePath: path,
-                    thumbnail: thumbnail
-                )
-                self.historyManager.saveHistory(self.screenshotHistory)
+            self.thumbnailTasks[itemID] = nil
+            guard let data, self.screenshotHistory.contains(where: { $0.id == itemID }) else { return }
+            await self.historyManager.saveThumbnail(data, for: itemID)
+            // The item may have been trimmed or deleted while the file was being written.
+            if self.screenshotHistory.contains(where: { $0.id == itemID }) {
+                self.thumbnailRevisions[itemID, default: 0] += 1
+            } else {
+                self.historyManager.removeThumbnails(for: [itemID])
             }
         }
+    }
+
+    /// Waits for in-flight thumbnail generation (used by tests).
+    func waitForPendingThumbnails() async {
+        for task in Array(thumbnailTasks.values) { await task.value }
     }
 
     func loadHistory(limit: Int) async {
@@ -48,6 +55,7 @@ final class HistoryState {
         historyManager.saveHistory(screenshotHistory)
         if !removed.isEmpty {
             historyManager.removeFiles(atPaths: removed.map(\.filePath))
+            historyManager.removeThumbnails(for: removed.map(\.id))
         }
     }
 
@@ -56,12 +64,14 @@ final class HistoryState {
         screenshotHistory.removeAll()
         historyManager.saveHistory([])
         historyManager.removeFiles(atPaths: removed.map(\.filePath))
+        historyManager.removeThumbnails(for: removed.map(\.id))
     }
 
     func deleteHistoryItem(_ item: ScreenshotItem) {
         screenshotHistory.removeAll { $0.id == item.id }
         historyManager.saveHistory(screenshotHistory)
         historyManager.trashFile(atPath: item.filePath)
+        historyManager.removeThumbnails(for: [item.id])
     }
 
     private func trimHistoryToLimit(limit: Int) -> [ScreenshotItem] {
@@ -70,4 +80,9 @@ final class HistoryState {
         screenshotHistory.removeLast(overflow.count)
         return overflow
     }
+}
+
+/// Hands an NSImage to a background task; the image is only read there.
+private struct SendableImage: @unchecked Sendable {
+    let image: NSImage
 }

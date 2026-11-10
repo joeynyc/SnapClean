@@ -92,10 +92,10 @@ struct HistoryItemView: View {
                 }
             }
             .buttonStyle(.plain)
-            // Keyed on the data: new history items get their thumbnail after they first appear.
-            .task(id: item.thumbnail) {
-                guard let data = item.thumbnail else { return }
-                thumbnailImage = await Task.detached(priority: .utility) { NSImage(data: data) }.value
+            // New items get their thumbnail file shortly after they appear; the revision triggers a reload.
+            .task(id: appState.history.thumbnailRevisions[item.id] ?? 0) {
+                let url = appState.history.historyManager.thumbnailURL(for: item.id)
+                thumbnailImage = await Task.detached(priority: .utility) { NSImage(contentsOf: url) }.value
             }
 
             // Info
